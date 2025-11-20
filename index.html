@@ -343,6 +343,39 @@
         }
 
         // =========================================
+        // AUDIO: Soft click on direction switch (Viz 2)
+        // =========================================
+        let audioCtx = null;
+        function playClick() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch (e) {
+                return;
+            }
+            const t0 = audioCtx.currentTime;
+            // Short, soft sine "tick"
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(2000, t0);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1000, t0);
+            // gentle envelope
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.exponentialRampToValueAtTime(0.04, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+            osc.connect(filter).connect(gain).connect(audioCtx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 0.09);
+        }
+
+        // =========================================
         // VIZ 1: POSTERIOR FIELD
         // =========================================
         const cvs1 = document.getElementById('posteriorCanvas');
@@ -664,13 +697,18 @@
                         // Sample Z
                         let r = Math.random();
                         let cum = 0;
-                        p.currentZ = simTargets[simTargets.length - 1];
+                        const oldZ = p.currentZ;
+                        let chosen = simTargets[simTargets.length - 1];
                         for(let i=0; i<weights.length; i++){
                             cum += weights[i];
                             if(r <= cum) {
-                                p.currentZ = simTargets[i];
+                                chosen = simTargets[i];
                                 break;
                             }
+                        }
+                        p.currentZ = chosen;
+                        if (p.id === 0 && p.currentZ !== oldZ) {
+                            playClick();
                         }
                     }
                     // Step towards chosen Z
