@@ -161,23 +161,23 @@
     <!-- Interactive Figure 1: The Posterior -->
     <div class="interactive-figure">
         <h4 style="margin-top:0;">Viz 1: The Time-Dependent Posterior</h4>
-        <canvas id="posteriorCanvas" width="600" height="350"></canvas>
+        <canvas id="posteriorCanvas" width="600" height="450"></canvas>
         
         <div class="controls">
             <button id="btnPlayPosterior">▶ Play Time</button>
-            <label>Time ($t$): <input type="range" id="timeSlider" min="0" max="99" value="0"></label>
-            <span id="timeDisplay">0.00</span>
+            <label>Time ($t$): <input type="range" id="timeSlider" min="0" max="99" value="50"></label>
+            <span id="timeDisplay">0.50</span>
             <div style="border-left:1px solid #ccc; padding-left:10px; margin-left:10px;">
-                <label>N: <input type="number" id="inputN" value="4" min="1" max="10"></label>
+                <label>N: <input type="number" id="inputN" value="15" min="1" max="50"></label>
                 <button id="btnResampleData" class="secondary">Resample Points</button>
             </div>
         </div>
 
         <div class="caption">
-            <strong>Instructions:</strong> Move the <span style="color:red">Red Dot</span> ($x$). 
+            <strong>Instructions:</strong> Move the <span style="color:green">Green Dot</span> ($x$). 
             The opacity of the <span style="color:blue">Blue Lines</span> represents the posterior probability $p(z|x,t)$.
             <br>
-            The <span style="color:green">Green Arrow</span> is the posterior averaged velocity $\bar{u}_t(x)$.
+            The <span style="color:red">Red Arrow</span> is the posterior averaged velocity $\bar{u}_t(x)$.
             <br>
             Notice that at $t=0$, weights are based on the Prior (center). As $t \to 1$, weights depend on distance to the nearest $Z$.
         </div>
@@ -214,9 +214,9 @@
         
         <div class="controls" id="resampleControls" style="display:none; background: #eef;">
             <label>Resample Interval (Step Size): 
-                <input type="range" id="stepSizeSlider" min="1" max="40" value="20">
+                <input type="range" id="stepSizeSlider" min="1" max="100" value="20">
             </label>
-            <span id="stepDisplay">Medium</span>
+            <span id="stepDisplay">0.020</span>
         </div>
 
         <div class="caption" id="simCaption">
@@ -235,8 +235,8 @@
         // =========================================
         
         // Prior Distribution Parameters (Centered on Canvas)
-        const PRIOR_CENTER = { x: 300, y: 200 }; // Center of canvas approx
-        const PRIOR_SIGMA = 60; 
+        const PRIOR_CENTER = { x: 300, y: 225 }; // Center of canvas approx
+        const PRIOR_SIGMA = 120; 
 
         function distSq(p1, p2) {
             return (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
@@ -328,7 +328,7 @@
 
         let v1 = {
             mouse: { x: 300, y: 100 },
-            t: 0.0,
+            t: 0.5,
             targets: [],
             playing: false,
             animId: null
@@ -372,7 +372,7 @@
 
         function loopV1() {
             if(v1.playing) {
-                v1.t += 0.005;
+                v1.t += 0.001;
                 if(v1.t >= 1.0) v1.t = 0;
                 timeSlider.value = v1.t * 100;
                 timeDisplay.textContent = v1.t.toFixed(2);
@@ -431,7 +431,7 @@
             // Draw Mouse
             ctx1.beginPath();
             ctx1.arc(v1.mouse.x, v1.mouse.y, 8, 0, Math.PI*2);
-            ctx1.fillStyle = 'red';
+            ctx1.fillStyle = 'green';
             ctx1.fill();
 
             // Draw Velocity Vector
@@ -446,7 +446,7 @@
             const dirX = avgVx; 
             const dirY = avgVy;
             
-            drawArrow(ctx1, v1.mouse.x, v1.mouse.y, v1.mouse.x + dirX, v1.mouse.y + dirY, 'green');
+            drawArrow(ctx1, v1.mouse.x, v1.mouse.y, v1.mouse.x + dirX, v1.mouse.y + dirY, 'red');
         }
 
         initV1Data();
@@ -464,6 +464,7 @@
         const stepSizeSlider = document.getElementById('stepSizeSlider');
         const stepDisplay = document.getElementById('stepDisplay');
         const simCaption = document.getElementById('simCaption');
+        const dt = 1 / 1000; // Slow time step
 
         // Fixed Targets for Sim
         const simTargets = [
@@ -515,7 +516,6 @@
         function updateSimState() {
             if(!sim.running) return;
 
-            const dt = 1 / 400; // Slow time step
             sim.t += dt;
             if (sim.t >= 1.0) {
                 sim.t = 1.0;
@@ -615,7 +615,7 @@
                     ctx2.moveTo(p.history[0].x, p.history[0].y);
                     for(let pt of p.history) ctx2.lineTo(pt.x, pt.y);
                     ctx2.lineTo(p.x, p.y);
-                    ctx2.strokeStyle = 'rgba(0,0,0,0.05)';
+                    ctx2.strokeStyle = 'rgba(0,0,0,0.15)';
                     ctx2.stroke();
                 }
             }
@@ -682,9 +682,7 @@
 
         stepSizeSlider.addEventListener('input', (e) => {
             sim.resampleInterval = parseInt(e.target.value);
-            if(sim.resampleInterval < 5) stepDisplay.textContent = "Tiny (Smooth)";
-            else if(sim.resampleInterval < 20) stepDisplay.textContent = "Medium";
-            else stepDisplay.textContent = "Large (Jagged)";
+            stepDisplay.textContent = parseFloat(e.target.value * dt).toFixed(3);
         });
 
         // Init
