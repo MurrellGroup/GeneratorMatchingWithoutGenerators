@@ -148,7 +148,7 @@
     <section>
         <h2>2. The Posterior Calculation</h2>
         
-        <p>Define a joint model for $(Z, X_t)$: Sample $Z \sim p_{\text{data}}$, then run a conditional process $(X^z_t)$. In optimal transport flow matching, the conditional path is a straight line:
+        <p>Define a joint model for $(Z, X_t)$: Sample $Z \sim p_{\text{data}}$, then run a conditional process $(X^z_t)$. In simple flow matching, the conditional path is a straight line:
         $$ X_t = (1-t)X_0 + t Z $$
         where $X_0 \sim \mathcal{N}(0, I)$.</p>
         
@@ -177,7 +177,7 @@
             <strong>Instructions:</strong> Move the <span style="color:green">Green Dot</span> ($x$). 
             The opacity of the <span style="color:blue">Blue Lines</span> represents the posterior probability $p(z|x,t)$.
             <br>
-            The <span style="color:red">Red Arrow</span> is the posterior averaged velocity $\bar{u}_t(x)$.
+            The posterior averaged velocity $\bar{u}_t(x)$ can be shown as a red arrow (hidden in this viz).
             <br>
             Notice that at $t=0$, weights are based on the Prior (center). As $t \to 1$, weights depend on distance to the nearest $Z$.
         </div>
@@ -391,7 +391,8 @@
             t: 0.5,
             targets: [],
             playing: false,
-            animId: null
+            animId: null,
+            showArrow: false
         };
 
         function initV1Data() {
@@ -498,8 +499,9 @@
             const visScale = 1.0; 
             const dirX = avgVx; 
             const dirY = avgVy;
-            
-            drawArrow(ctx1, v1.mouse.x, v1.mouse.y, v1.mouse.x + dirX, v1.mouse.y + dirY, 'red');
+            if (v1.showArrow) {
+                drawArrow(ctx1, v1.mouse.x, v1.mouse.y, v1.mouse.x + dirX, v1.mouse.y + dirY, 'red');
+            }
         }
 
         initV1Data();
@@ -823,6 +825,31 @@
             }
         }
 
+        function drawAutoStageOverlay() {
+            if (!sim.autoPlayActive) return;
+            let label = '';
+            switch (sim.autoStageIndex) {
+                case 0: label = 'Resampled, slow switching'; break;
+                case 1: label = 'Resampled, medium switching'; break;
+                case 2: label = 'Resampled, fast switching'; break;
+                case 3: label = 'Posterior averaged'; break;
+            }
+            if (!label) return;
+            ctx2.save();
+            ctx2.font = '14px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+            const padding = 8;
+            const textWidth = ctx2.measureText(label).width;
+            const x = (cvs2.width - textWidth) / 2 - padding;
+            const y = 8;
+            const w = textWidth + padding * 2;
+            const h = 24;
+            ctx2.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx2.fillRect(x, y, w, h);
+            ctx2.fillStyle = '#fff';
+            ctx2.fillText(label, x + padding, y + 16);
+            ctx2.restore();
+        }
+
         // Sim Controls
         btnResetSim.addEventListener('click', startSimFromSeeds);
         btnRandomizeSim.addEventListener('click', randomizeAndStartSim);
@@ -873,6 +900,155 @@
         buildParticlesFromSeeds();
         drawSim();
 
+    </script>
+
+    <!-- Interactive Figure 3: Posterior with Arrow -->
+    <div class="interactive-figure">
+        <h4 style="margin-top:0;">Viz 3: The Time-Dependent Posterior (with Averaged Velocity Arrow)</h4>
+        <canvas id="posteriorCanvas3" width="600" height="450"></canvas>
+        
+        <div class="controls">
+            <button id="btnPlayPosterior3">▶ Play Time</button>
+            <label>Time ($t$): <input type="range" id="timeSlider3" min="0" max="99" value="50"></label>
+            <span id="timeDisplay3">0.50</span>
+            <div style="border-left:1px solid #ccc; padding-left:10px; margin-left:10px;">
+                <label>N: <input type="number" id="inputN3" value="15" min="1" max="50"></label>
+                <button id="btnResampleData3" class="secondary">Resample Points</button>
+            </div>
+        </div>
+        
+        <div class="caption">
+            <strong>Instructions:</strong> Move the <span style="color:green">Green Dot</span> ($x$). 
+            The opacity of the <span style="color:blue">Blue Lines</span> represents the posterior probability $p(z|x,t)$.
+            <br>
+            The <span style="color:red">Red Arrow</span> shows the posterior averaged velocity $\bar{u}_t(x)$.
+        </div>
+    </div>
+
+    <script>
+        // =========================================
+        // VIZ 3: POSTERIOR FIELD WITH ARROW
+        // =========================================
+        const cvs3 = document.getElementById('posteriorCanvas3');
+        const ctx3 = cvs3.getContext('2d');
+        const timeSlider3 = document.getElementById('timeSlider3');
+        const timeDisplay3 = document.getElementById('timeDisplay3');
+        const btnPlay3 = document.getElementById('btnPlayPosterior3');
+        const inputN3 = document.getElementById('inputN3');
+        const btnResampleData3 = document.getElementById('btnResampleData3');
+
+        let v3 = {
+            mouse: { x: 300, y: 100 },
+            t: 0.5,
+            targets: [],
+            playing: false,
+            animId: null
+        };
+
+        function initV3Data() {
+            const n = parseInt(inputN3.value) || 4;
+            v3.targets = [];
+            for(let i=0; i<n; i++){
+                v3.targets.push({
+                    x: Math.random() * (cvs3.width - 100) + 50,
+                    y: Math.random() * (cvs3.height - 150) + 100
+                });
+            }
+        }
+
+        // Inputs
+        cvs3.addEventListener('mousemove', e => {
+            const r = cvs3.getBoundingClientRect();
+            v3.mouse.x = e.clientX - r.left;
+            v3.mouse.y = e.clientY - r.top;
+        });
+        cvs3.addEventListener('touchmove', e => {
+            e.preventDefault();
+            const r = cvs3.getBoundingClientRect();
+            v3.mouse.x = e.touches[0].clientX - r.left;
+            v3.mouse.y = e.touches[0].clientY - r.top;
+        }, {passive:false});
+
+        timeSlider3.addEventListener('input', (e) => {
+            v3.t = parseFloat(e.target.value) / 100;
+            timeDisplay3.textContent = v3.t.toFixed(2);
+        });
+
+        btnPlay3.addEventListener('click', () => {
+            v3.playing = !v3.playing;
+            btnPlay3.textContent = v3.playing ? "⏸ Pause" : "▶ Play Time";
+        });
+
+        btnResampleData3.addEventListener('click', initV3Data);
+
+        function loopV3() {
+            if(v3.playing) {
+                v3.t += 0.001;
+                if(v3.t >= 1.0) v3.t = 0;
+                timeSlider3.value = v3.t * 100;
+                timeDisplay3.textContent = v3.t.toFixed(2);
+            }
+            drawV3();
+            requestAnimationFrame(loopV3);
+        }
+
+        function drawV3() {
+            ctx3.clearRect(0, 0, cvs3.width, cvs3.height);
+
+            // Draw Prior Region (faint)
+            ctx3.strokeStyle = "#eee";
+            ctx3.setLineDash([5, 5]);
+            ctx3.beginPath();
+            ctx3.arc(PRIOR_CENTER_1.x, PRIOR_CENTER_1.y, PRIOR_SIGMA_1, 0, Math.PI*2);
+            ctx3.stroke();
+            ctx3.setLineDash([]);
+            ctx3.fillStyle = "#ccc";
+            ctx3.fillText("Prior Distribution", PRIOR_CENTER_1.x - 40, PRIOR_CENTER_1.y);
+
+            // Compute Weights
+            const weights = getPosteriorWeights(v3.mouse, v3.targets, v3.t, PRIOR_CENTER_1, PRIOR_SIGMA_1);
+
+            // Draw Connections
+            v3.targets.forEach((z, i) => {
+                const w = weights[i];
+                if (w > 0.001) {
+                    ctx3.beginPath();
+                    ctx3.moveTo(v3.mouse.x, v3.mouse.y);
+                    ctx3.lineTo(z.x, z.y);
+                    ctx3.strokeStyle = `rgba(0, 0, 255, ${w})`;
+                    ctx3.lineWidth = w * 4 + 1;
+                    ctx3.stroke();
+                }
+                
+                // Target Dot
+                ctx3.beginPath();
+                ctx3.arc(z.x, z.y, 6, 0, Math.PI*2);
+                ctx3.fillStyle = '#0056b3';
+                ctx3.fill();
+            });
+
+            // Compute Average Velocity
+            let avgVx = 0, avgVy = 0;
+            const t_safe = Math.min(v3.t, 0.99);
+            v3.targets.forEach((z, i) => {
+                avgVx += weights[i] * (z.x - v3.mouse.x);
+                avgVy += weights[i] * (z.y - v3.mouse.y);
+            });
+
+            // Draw Mouse
+            ctx3.beginPath();
+            ctx3.arc(v3.mouse.x, v3.mouse.y, 8, 0, Math.PI*2);
+            ctx3.fillStyle = 'green';
+            ctx3.fill();
+
+            // Draw Velocity Vector (always shown in Viz 3)
+            const dirX = avgVx; 
+            const dirY = avgVy;
+            drawArrow(ctx3, v3.mouse.x, v3.mouse.y, v3.mouse.x + dirX, v3.mouse.y + dirY, 'red');
+        }
+
+        initV3Data();
+        loopV3();
     </script>
 </body>
 </html>
