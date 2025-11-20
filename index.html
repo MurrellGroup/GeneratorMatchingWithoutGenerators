@@ -123,9 +123,9 @@
 <body>
 
     <header>
-        <h1>An Intuitive Picture of Generator Matching via Resampling</h1>
+        <h1>Generator Matching without Generators</h1>
         <div style="text-align: center; color: #666; margin-bottom: 2rem;">
-            A Pedagogical Sketch
+            or "Generator Matching for Computer Scientists" - Ben Murrell
         </div>
     </header>
 
@@ -211,9 +211,10 @@
             <button id="btnResetSim">Restart Simulation</button>
             <button id="btnRandomizeSim" class="secondary">Randomize</button>
             <button id="btnToggleMode" class="active">Mode: Averaged (Smooth)</button>
+            <button id="btnAutoPlay" class="secondary">▶ Play Sequence</button>
         </div>
         
-        <div class="controls" id="resampleControls" style="display:none; background: #eef;">
+        <div class="controls" id="resampleControls" style="background: #eef;">
             <label>Resample Interval (Step Size): 
                 <input type="range" id="stepSizeSlider" min="1" max="100" value="20">
             </label>
@@ -316,6 +317,29 @@
             ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
             ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
             ctx.fill();
+        }
+
+        // Styled thin arrow (for faint hero arrow in Viz 2)
+        function drawArrowStyled(ctx, fromX, fromY, toX, toY, color, lineWidth, alpha) {
+            const headlen = 8;
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const angle = Math.atan2(dy, dx);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.fill();
+            ctx.restore();
         }
 
         // =========================================
@@ -457,11 +481,18 @@
         const btnResetSim = document.getElementById('btnResetSim');
         const btnRandomizeSim = document.getElementById('btnRandomizeSim');
         const btnToggleMode = document.getElementById('btnToggleMode');
+        const btnAutoPlay = document.getElementById('btnAutoPlay');
         const resampleControls = document.getElementById('resampleControls');
         const stepSizeSlider = document.getElementById('stepSizeSlider');
         const stepDisplay = document.getElementById('stepDisplay');
         const simCaption = document.getElementById('simCaption');
         const dt = 1 / 1000; // Slow time step
+        const AUTO_STAGES = [
+            { mode: 'resample', interval: 100 },
+            { mode: 'resample', interval: 10 },
+            { mode: 'resample', interval: 1 },
+            { mode: 'average' }
+        ];
 
         // Fixed Targets for Sim
         const simTargets = [
@@ -476,7 +507,9 @@
             particles: [],
             initialSeeds: null,
             resampleInterval: 20,
-            animId: null
+            animId: null,
+            autoPlayActive: false,
+            autoStageIndex: 0
         };
 
         function startSimFromSeeds() {
@@ -525,6 +558,51 @@
 
         function randomizeAndStartSim() {
             randomizeInitialSeeds(80);
+            startSimFromSeeds();
+        }
+
+        function setSimMode(mode) {
+            if (mode === 'resample') {
+                sim.mode = 'resample';
+                btnToggleMode.textContent = "Mode: Resampled (Stochastic)";
+                btnToggleMode.classList.remove('active');
+                // Keep controls visible; enable slider
+                resampleControls.style.display = 'flex';
+                stepSizeSlider.disabled = false;
+                resampleControls.style.opacity = '1';
+                simCaption.innerHTML = `
+                    <strong>Mode: Resampled.</strong> 
+                    <span style="color:#d63384; font-weight:bold;">Red Path (Hero):</span> At each step, it picks the <span style="color:#0056b3; font-weight:bold">Solid Blue Target</span> and moves toward it.
+                    <br/>Smaller steps $\\to$ smoother average.
+                `;
+            } else {
+                sim.mode = 'average';
+                btnToggleMode.textContent = "Mode: Averaged (Smooth)";
+                btnToggleMode.classList.add('active');
+                // Keep controls visible; disable slider to avoid layout jump
+                resampleControls.style.display = 'flex';
+                stepSizeSlider.disabled = true;
+                resampleControls.style.opacity = '0.5';
+                simCaption.innerHTML = `
+                    <strong>Mode: Averaged.</strong> 
+                    <span style="color:#d63384; font-weight:bold;">Red Path (Hero):</span> Moves by the weighted average vector.
+                    <br/>
+                    <span style="color:#0056b3; font-weight:bold">Blue Target Opacity</span> = Posterior weight $p(z|x,t)$.
+                `;
+            }
+        }
+
+        function applyStageAndStart(idx) {
+            const stage = AUTO_STAGES[idx];
+            if (!stage) return;
+            if (stage.mode === 'resample') {
+                setSimMode('resample');
+                sim.resampleInterval = stage.interval;
+                stepSizeSlider.value = String(stage.interval);
+                stepDisplay.textContent = parseFloat(stage.interval * dt).toFixed(3);
+            } else {
+                setSimMode('average');
+            }
             startSimFromSeeds();
         }
 
@@ -646,6 +724,22 @@
             }
             ctx2.stroke();
 
+            // 3.5 Draw thin faint red arrow for the Hero
+            if (sim.mode === 'average') {
+                // Arrow toward average direction (like Viz 1)
+                let avgVx = 0, avgVy = 0;
+                simTargets.forEach((z, i) => {
+                    avgVx += heroWeights[i] * (z.x - hero.x);
+                    avgVy += heroWeights[i] * (z.y - hero.y);
+                });
+                drawArrowStyled(ctx2, hero.x, hero.y, hero.x + avgVx, hero.y + avgVy, '#d63384', 1, 0.5);
+            } else {
+                // Arrow toward current chosen Z
+                if (hero.currentZ) {
+                    drawArrowStyled(ctx2, hero.x, hero.y, hero.currentZ.x, hero.currentZ.y, '#d63384', 1, 0.5);
+                }
+            }
+
             ctx2.beginPath();
             ctx2.arc(hero.x, hero.y, 4, 0, Math.PI*2);
             ctx2.fillStyle = '#d63384';
@@ -663,6 +757,12 @@
             drawSim();
             if(sim.running || sim.t < 1.0) {
                 sim.animId = requestAnimationFrame(simLoop);
+            } else {
+                // Handle auto-play stage transitions
+                if (sim.autoPlayActive) {
+                    sim.autoStageIndex = (sim.autoStageIndex + 1) % AUTO_STAGES.length;
+                    applyStageAndStart(sim.autoStageIndex);
+                }
             }
         }
 
@@ -671,34 +771,22 @@
         btnRandomizeSim.addEventListener('click', randomizeAndStartSim);
         
         btnToggleMode.addEventListener('click', () => {
-            if(sim.mode === 'average') {
-                sim.mode = 'resample';
-                btnToggleMode.textContent = "Mode: Resampled (Stochastic)";
-                btnToggleMode.classList.remove('active');
-                resampleControls.style.display = 'flex';
-                simCaption.innerHTML = `
-                    <strong>Mode: Resampled.</strong> 
-                    <span style="color:#d63384; font-weight:bold;">Red Path (Hero):</span> At each step, it picks the <span style="color:#0056b3; font-weight:bold">Solid Blue Target</span> and moves toward it.
-                    <br/>Smaller steps $\\to$ smoother average.
-                `;
-            } else {
-                sim.mode = 'average';
-                btnToggleMode.textContent = "Mode: Averaged (Smooth)";
-                btnToggleMode.classList.add('active');
-                resampleControls.style.display = 'none';
-                simCaption.innerHTML = `
-                    <strong>Mode: Averaged.</strong> 
-                    <span style="color:#d63384; font-weight:bold;">Red Path (Hero):</span> Moves by the weighted average vector.
-                    <br/>
-                    <span style="color:#0056b3; font-weight:bold">Blue Target Opacity</span> = Posterior weight $p(z|x,t)$.
-                `;
-            }
+            if(sim.mode === 'average') setSimMode('resample'); else setSimMode('average');
             startSimFromSeeds();
         });
 
         stepSizeSlider.addEventListener('input', (e) => {
             sim.resampleInterval = parseInt(e.target.value);
             stepDisplay.textContent = parseFloat(e.target.value * dt).toFixed(3);
+        });
+
+        btnAutoPlay.addEventListener('click', () => {
+            sim.autoPlayActive = !sim.autoPlayActive;
+            btnAutoPlay.textContent = sim.autoPlayActive ? '⏸ Pause Sequence' : '▶ Play Sequence';
+            if (sim.autoPlayActive) {
+                sim.autoStageIndex = 0;
+                applyStageAndStart(sim.autoStageIndex);
+            }
         });
 
         // Click to set Hero X0 and restart
@@ -716,6 +804,7 @@
 
         // Init (randomize once, then allow restarts to keep seeds)
         randomizeAndStartSim();
+        setSimMode(sim.mode);
 
     </script>
 </body>
