@@ -205,10 +205,11 @@
     <!-- Interactive Figure 2: Resample vs Average -->
     <div class="interactive-figure">
         <h4 style="margin-top:0;">Viz 2: Resampling Steps vs. Averaged Flow</h4>
-        <canvas id="simCanvas" width="600" height="400"></canvas>
+        <canvas id="simCanvas" width="800" height="400"></canvas>
         
         <div class="controls">
             <button id="btnResetSim">Restart Simulation</button>
+            <button id="btnRandomizeSim" class="secondary">Randomize</button>
             <button id="btnToggleMode" class="active">Mode: Averaged (Smooth)</button>
         </div>
         
@@ -235,29 +236,31 @@
         // =========================================
         
         // Prior Distribution Parameters (Centered on Canvas)
-        const PRIOR_CENTER = { x: 300, y: 225 }; // Center of canvas approx
-        const PRIOR_SIGMA = 120; 
+        const PRIOR_CENTER_1 = { x: 300, y: 225 }; // Center of canvas approx
+        const PRIOR_SIGMA_1 = 120; 
+        const PRIOR_CENTER_2 = { x: 100, y: 200 }; // Center of canvas approx
+        const PRIOR_SIGMA_2 = 60; 
 
         function distSq(p1, p2) {
             return (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
         }
 
         // Gaussian PDF unnormalized
-        function gaussianPdf(x, y) {
-            const d2 = (x - PRIOR_CENTER.x)**2 + (y - PRIOR_CENTER.y)**2;
-            return Math.exp(-d2 / (2 * PRIOR_SIGMA * PRIOR_SIGMA));
+        function gaussianPdf(x, y, center, sigma) {
+            const d2 = (x - center.x)**2 + (y - center.y)**2;
+            return Math.exp(-d2 / (2 * sigma * sigma));
         }
 
         // We ignore the constant factor -log(sqrt(2pi)*sigma) because it cancels out
-        function gaussianLogPdf(x, y) {
-            const dx = x - PRIOR_CENTER.x;
-            const dy = y - PRIOR_CENTER.y;
+        function gaussianLogPdf(x, y, center, sigma) {
+            const dx = x - center.x;
+            const dy = y - center.y;
             // log(exp(-d^2 / 2s^2)) = -d^2 / 2s^2
-            return -(dx*dx + dy*dy) / (2 * PRIOR_SIGMA * PRIOR_SIGMA);
+            return -(dx*dx + dy*dy) / (2 * sigma * sigma);
         }
 
         // Replacement 2: Robust Posterior Weights using Log-Sum-Exp
-        function getPosteriorWeights(x, targets, t) {
+        function getPosteriorWeights(x, targets, t, center, sigma) {
             // We can get extremely close to 1.0 now without NaN
             const t_safe = Math.min(t, 0.9999);
             const one_minus_t = 1 - t_safe;
@@ -270,7 +273,7 @@
                 const x0_x = (x.x - t_safe * z.x) / one_minus_t;
                 const x0_y = (x.y - t_safe * z.y) / one_minus_t;
 
-                const lw = gaussianLogPdf(x0_x, x0_y);
+                const lw = gaussianLogPdf(x0_x, x0_y, center, sigma);
                 logWeights.push(lw);
                 
                 // Track max for stability
@@ -388,14 +391,14 @@
             ctx1.strokeStyle = "#eee";
             ctx1.setLineDash([5, 5]);
             ctx1.beginPath();
-            ctx1.arc(PRIOR_CENTER.x, PRIOR_CENTER.y, PRIOR_SIGMA, 0, Math.PI*2);
+            ctx1.arc(PRIOR_CENTER_1.x, PRIOR_CENTER_1.y, PRIOR_SIGMA_1, 0, Math.PI*2);
             ctx1.stroke();
             ctx1.setLineDash([]);
             ctx1.fillStyle = "#ccc";
-            ctx1.fillText("Prior Distribution", PRIOR_CENTER.x - 40, PRIOR_CENTER.y);
+            ctx1.fillText("Prior Distribution", PRIOR_CENTER_1.x - 40, PRIOR_CENTER_1.y);
 
             // Compute Weights
-            const weights = getPosteriorWeights(v1.mouse, v1.targets, v1.t);
+            const weights = getPosteriorWeights(v1.mouse, v1.targets, v1.t, PRIOR_CENTER_1, PRIOR_SIGMA_1);
 
             // Draw Connections
             v1.targets.forEach((z, i) => {
@@ -435,14 +438,7 @@
             ctx1.fill();
 
             // Draw Velocity Vector
-            // We scale down the length slightly for visualization sanity as t->1
-            // The direction is what matters most for intuition here.
             const visScale = 1.0; 
-            // If t is small, velocity is small. If t is large, velocity is huge.
-            // Let's just visualize the weighted direction sum without the 1/(1-t) explosion
-            // so the user can see "where it points".
-            // Actually, prompt asked for the vector. Let's normalize drawing length but keep correct direction.
-            
             const dirX = avgVx; 
             const dirY = avgVy;
             
@@ -459,6 +455,7 @@
         const cvs2 = document.getElementById('simCanvas');
         const ctx2 = cvs2.getContext('2d');
         const btnResetSim = document.getElementById('btnResetSim');
+        const btnRandomizeSim = document.getElementById('btnRandomizeSim');
         const btnToggleMode = document.getElementById('btnToggleMode');
         const resampleControls = document.getElementById('resampleControls');
         const stepSizeSlider = document.getElementById('stepSizeSlider');
@@ -468,8 +465,8 @@
 
         // Fixed Targets for Sim
         const simTargets = [
-            { x: 450, y: 100 }, { x: 480, y: 120 }, { x: 440, y: 130 }, 
-            { x: 450, y: 280 }, { x: 480, y: 260 }, { x: 430, y: 290 }
+            { x: 750, y: 100 }, { x: 780, y: 120 }, { x: 740, y: 130 }, 
+            { x: 750, y: 280 }, { x: 780, y: 260 }, { x: 730, y: 290 }
         ];
 
         let sim = {
@@ -477,30 +474,26 @@
             running: false,
             t: 0,
             particles: [],
+            initialSeeds: null,
             resampleInterval: 20,
             animId: null
         };
 
-        function initSim() {
+        function startSimFromSeeds() {
             sim.running = false;
             sim.t = 0;
             sim.particles = [];
-            
-            // Create 80 Particles
-            for(let i=0; i<80; i++) {
-                // Sample from Prior (approx)
-                // Use Box-Muller for Gaussian
-                const u = 1 - Math.random();
-                const v = Math.random();
-                const z_gauss = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
-                const u2 = 1 - Math.random();
-                const v2 = Math.random();
-                const z_gauss2 = Math.sqrt( -2.0 * Math.log( u2 ) ) * Math.cos( 2.0 * Math.PI * v2 );
-
+            if (!sim.initialSeeds || sim.initialSeeds.length === 0) {
+                // Safety: if seeds missing, randomize then proceed
+                randomizeInitialSeeds(80);
+            }
+            // Instantiate particles from seeds
+            for (let i = 0; i < sim.initialSeeds.length; i++) {
+                const seed = sim.initialSeeds[i];
                 sim.particles.push({
                     id: i,
-                    x: PRIOR_CENTER.x + z_gauss * PRIOR_SIGMA,
-                    y: PRIOR_CENTER.y + z_gauss2 * PRIOR_SIGMA,
+                    x: seed.x,
+                    y: seed.y,
                     history: [],
                     currentZ: null,
                     timer: 0
@@ -511,6 +504,28 @@
             if(sim.animId) cancelAnimationFrame(sim.animId);
             sim.running = true;
             simLoop();
+        }
+
+        function randomizeInitialSeeds(n = 80) {
+            sim.initialSeeds = [];
+            for(let i=0; i<n; i++) {
+                // Sample from Prior (approx) using Box-Muller
+                const u = 1 - Math.random();
+                const v = Math.random();
+                const z_gauss = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+                const u2 = 1 - Math.random();
+                const v2 = Math.random();
+                const z_gauss2 = Math.sqrt( -2.0 * Math.log( u2 ) ) * Math.cos( 2.0 * Math.PI * v2 );
+                sim.initialSeeds.push({
+                    x: PRIOR_CENTER_2.x + z_gauss * PRIOR_SIGMA_2,
+                    y: PRIOR_CENTER_2.y + z_gauss2 * PRIOR_SIGMA_2
+                });
+            }
+        }
+
+        function randomizeAndStartSim() {
+            randomizeInitialSeeds(80);
+            startSimFromSeeds();
         }
 
         function updateSimState() {
@@ -531,7 +546,7 @@
                     p.history.push({x: p.x, y: p.y});
                 }
 
-                const weights = getPosteriorWeights(p, simTargets, t);
+                const weights = getPosteriorWeights(p, simTargets, t, PRIOR_CENTER_2, PRIOR_SIGMA_2);
 
                 if (sim.mode === 'average') {
                     // Weighted Average Step
@@ -578,7 +593,7 @@
 
             // 1. Draw Targets (Visuals depend on Hero)
             // Calculate Hero Weights for visualization
-            const heroWeights = getPosteriorWeights(hero, simTargets, sim.t);
+            const heroWeights = getPosteriorWeights(hero, simTargets, sim.t, PRIOR_CENTER_2, PRIOR_SIGMA_2);
 
             simTargets.forEach((z, i) => {
                 ctx2.beginPath();
@@ -652,7 +667,8 @@
         }
 
         // Sim Controls
-        btnResetSim.addEventListener('click', initSim);
+        btnResetSim.addEventListener('click', startSimFromSeeds);
+        btnRandomizeSim.addEventListener('click', randomizeAndStartSim);
         
         btnToggleMode.addEventListener('click', () => {
             if(sim.mode === 'average') {
@@ -677,7 +693,7 @@
                     <span style="color:#0056b3; font-weight:bold">Blue Target Opacity</span> = Posterior weight $p(z|x,t)$.
                 `;
             }
-            initSim();
+            startSimFromSeeds();
         });
 
         stepSizeSlider.addEventListener('input', (e) => {
@@ -685,8 +701,21 @@
             stepDisplay.textContent = parseFloat(e.target.value * dt).toFixed(3);
         });
 
-        // Init
-        initSim();
+        // Click to set Hero X0 and restart
+        cvs2.addEventListener('click', (e) => {
+            const rect = cvs2.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (!sim.initialSeeds || sim.initialSeeds.length === 0) {
+                randomizeInitialSeeds(80);
+            }
+            // Hero is particle 0
+            sim.initialSeeds[0] = { x, y };
+            startSimFromSeeds();
+        });
+
+        // Init (randomize once, then allow restarts to keep seeds)
+        randomizeAndStartSim();
 
     </script>
 </body>
