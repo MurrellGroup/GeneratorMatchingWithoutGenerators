@@ -208,10 +208,10 @@
         <canvas id="simCanvas" width="800" height="400"></canvas>
         
         <div class="controls">
+            <button id="btnAutoPlay" class="secondary">▶</button>
             <button id="btnResetSim">Restart Simulation</button>
             <button id="btnRandomizeSim" class="secondary">Randomize</button>
             <button id="btnToggleMode" class="active">Mode: Averaged (Smooth)</button>
-            <button id="btnAutoPlay" class="secondary">▶ Play Sequence</button>
         </div>
         
         <div class="controls" id="resampleControls" style="background: #eef;">
@@ -239,7 +239,7 @@
         // Prior Distribution Parameters (Centered on Canvas)
         const PRIOR_CENTER_1 = { x: 300, y: 225 }; // Center of canvas approx
         const PRIOR_SIGMA_1 = 120; 
-        const PRIOR_CENTER_2 = { x: 100, y: 200 }; // Center of canvas approx
+        const PRIOR_CENTER_2 = { x: 180, y: 200 }; // Center of canvas approx
         const PRIOR_SIGMA_2 = 60; 
 
         function distSq(p1, p2) {
@@ -501,12 +501,12 @@
         ];
 
         let sim = {
-            mode: 'average', 
+            mode: 'resample', 
             running: false,
             t: 0,
             particles: [],
             initialSeeds: null,
-            resampleInterval: 20,
+            resampleInterval: 100,
             animId: null,
             autoPlayActive: false,
             autoStageIndex: 0
@@ -537,6 +537,25 @@
             if(sim.animId) cancelAnimationFrame(sim.animId);
             sim.running = true;
             simLoop();
+        }
+
+        function buildParticlesFromSeeds() {
+            sim.t = 0;
+            sim.particles = [];
+            if (!sim.initialSeeds || sim.initialSeeds.length === 0) {
+                randomizeInitialSeeds(80);
+            }
+            for (let i = 0; i < sim.initialSeeds.length; i++) {
+                const seed = sim.initialSeeds[i];
+                sim.particles.push({
+                    id: i,
+                    x: seed.x,
+                    y: seed.y,
+                    history: [],
+                    currentZ: null,
+                    timer: 0
+                });
+            }
         }
 
         function randomizeInitialSeeds(n = 80) {
@@ -781,11 +800,16 @@
         });
 
         btnAutoPlay.addEventListener('click', () => {
-            sim.autoPlayActive = !sim.autoPlayActive;
-            btnAutoPlay.textContent = sim.autoPlayActive ? '⏸ Pause Sequence' : '▶ Play Sequence';
-            if (sim.autoPlayActive) {
+            if (!sim.autoPlayActive) {
+                sim.autoPlayActive = true;
+                btnAutoPlay.textContent = '⏸';
                 sim.autoStageIndex = 0;
                 applyStageAndStart(sim.autoStageIndex);
+            } else {
+                // Pause both sequence cycling and the simulation trajectory
+                sim.autoPlayActive = false;
+                sim.running = false;
+                btnAutoPlay.textContent = '▶ Play Sequence';
             }
         });
 
@@ -802,9 +826,14 @@
             startSimFromSeeds();
         });
 
-        // Init (randomize once, then allow restarts to keep seeds)
-        randomizeAndStartSim();
-        setSimMode(sim.mode);
+        // Init (randomize once, build particles, set defaults; do NOT start running)
+        randomizeInitialSeeds(80);
+        setSimMode('resample');
+        sim.resampleInterval = 100;
+        stepSizeSlider.value = '100';
+        stepDisplay.textContent = parseFloat(100 * dt).toFixed(3);
+        buildParticlesFromSeeds();
+        drawSim();
 
     </script>
 </body>
