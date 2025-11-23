@@ -125,42 +125,75 @@
     <header>
         <h1>Generator Matching without Generators</h1>
         <div style="text-align: center; color: #666; margin-bottom: 2rem;">
-            or "Generator Matching for Computer Scientists" - Ben Murrell
+            or "Generator Matching for Computer Scientists"
+        </div>
+        <div style="text-align: center; color: #666;">
+            by Ben Murrell
         </div>
     </header>
 
     <div class="abstract">
-        <strong>Abstract.</strong> We give an intuitive description of generator matching in terms of a simple “resample–and–step” construction. Starting from conditional Markov processes indexed by a data variable $Z$, we define a hypothetical marginal process that, at each time $t$ and state $x$, resamples a fresh $Z$ from the posterior $Z \mid (X_t = x)$ and then moves one tiny step according to the corresponding conditional Markov process. We explain why this process preserves the desired marginal distributions, and why in the small–step limit it is equivalent to running a single Markov process with an <em>averaged generator</em>.
+        <strong>Motivation.</strong> Generator Matching (GM) is an incredible framework that subsumes nearly all flow matching and diffusion models.
+        Understanding it unlocks the ability to easily construct <a href="https://arxiv.org/pdf/2511.09465">entirely novel methods</a>, and let's you understand existing approaches with greater clarity. 
+        Depending on your math background, however, it can be somewhat unapproachable, since it uses the formalism of <a href="https://en.wikipedia.org/wiki/Infinitesimal_generator_(stochastic_processes)">generators</a> to handle the generality needed to cover all kinds of stochastic processes and state spaces. 
+        Here we use a simple reframing to attempt to explain Generator Matching without Generators, using only concepts from basic probability. Working through this should make it clear why GM works, and give you the ability to construct your own GM methods without learning measure theory and advanced stochastic processes.
+        <p>
+        Note: If you are in the target audience for this simplified presentation of GM, this will not be easy reading, and will require some work on your side. But it will be worth it. So set aside a few quiet hours, grab some coffee, and get ready to dive in.
+        </p>
     </div>
 
     <section>
-        <h2>1. High–level picture</h2>
-        <p>Generator Matching (GM) starts from two ingredients:</p>
+        <h2>1. Preliminaries</h2>
+        <p>
+            In generative modeling, you typically have a training dataset of samples from some "target" distribution, and you wish to train a model that can generate new samples from this distribution. These could be images, sequences of text, songs, proteins, etc, each with their own state space (continuous, discrete, manifold, or mixtures of these).
+        <p> This is what Generator Matching (GM) lets you do. Like <a href="https://mlg.eng.cam.ac.uk/blog/2024/01/20/flow-matching.html">flow matching</a> (which GM generalizes), this is done by starting from an easy-to-sample-from "prior" distribution, and learning how to transform this into the target distribution. It does this through many small steps in what we call "time" (which we denote with $t$), starting at $t=0$ (the simple prior) and ending at $t=1$ (the target distribution).
+        </p>
+        <p>
+            [Insert image and protein examples.]
+        </p>
+        <p>
+            We denote the state of the model at time $t$ as $x_t$. For example, if you are modeling images, then $x_1$ would be an image from the training dataset, and $x_0$ would be an image with random pixel values.
+        </p>
+        <p>We need to introduce the notion of a "conditional processs". GM requires that you can:</p>
         <ul>
-            <li>a simple “prior” distribution $p_{\text{simple}}$ (usually Gaussian);</li>
-            <li>a conditional path of distributions $p_t(\cdot \mid z)$,
-            interpolating between the prior and a specific data point $z$.</li>
+            <li>sample a $z$ from some distribution $p(z)$, which controls where the process ends when $t=1$.</li>
+            <li>conditioned on $z$, sample $x_{t+\Delta t}$ from $p(x_{t+\Delta t} \mid x_t, z, t)$ for some small time step $\Delta t$;</li>
         </ul>
 
-        <p>The marginal generator turns out to be the appropriate <em>average</em> of the generators of the conditional processes. The goal of this note is to give an intuitive route to why this marginal generator is an average.</p>
+        <p>What is $z$? Often $z$ is just a single training data sample $x_1$, but $z$ is an extremely flexible "latent variable", and can include other information that controls the path of the process. More about that later.</p>
+
+        <p>You can think of $p(x_{t+\Delta t} \mid x_t, z, t)$ as a function that takes the current state $x_t$, the latent $z$, and the time $t$, and returns the next state $x_{t+\Delta t}$, which may or may not involve some randomness. The only constraint is that when you repeatedly step through time by calling this function over and over, when $t$ reaches $1$, the state $x_1$ will be the sample from the training distribution that is associated with the latent $z$.</p>
+
+        <p>With a simple prior distribution $p(x_0)$ that governs where the process starts, $p(x_{t+\Delta t} \mid x_t, z, t)$ specifies the distribution of each subsequent step, and pins down what we call the "conditional path" (because it is conditioned on $z$ to terminate at a given $x_1$).</p>
+
     </section>
 
     <section>
-        <h2>2. The Posterior Calculation</h2>
-        
-        <p>Define a joint model for $(Z, X_t)$: Sample $Z \sim p_{\text{data}}$, then run a conditional process $(X^z_t)$. In simple flow matching, the conditional path is a straight line:
-        $$ X_t = (1-t)X_0 + t Z $$
-        where $X_0 \sim \mathcal{N}(0, I)$.</p>
-        
-        <p>To calculate the posterior $p(z \mid x, t)$, we invert this relationship. If we observe $x$ at time $t$, and we hypothesize it came from $z$, then the starting point must have been:
-        $$ x_0 = \frac{x - t z}{1-t} $$
-        The likelihood of $z$ is proportional to the density of the prior at this projected $x_0$.
+        <h2>2. The marginals of the process $p(x_t \mid t)$, and the conditional posterior distribution $p(z \mid x_t, t)$.</h2>
+
+        <p>Importantly, we can sample from $p(x_t \mid z, t)$, the conditional process at any $t$, by first sampling $z$, sampling $x_0$ from the prior, and then stepping through $p(x_{t+\Delta t} \mid x_t, z, t)$ for each step until $t$ is reached. A central distribution of interest is the <strong>marginal distribution</strong> of $x_t$ at each time $t$. If we have $n$ training data samples, and each $z$ has equal probability, then:
+            $$p(x_t \mid t) = \frac{1}{n} \sum_{i=1}^n p(x_t \mid z_i, t)$$
         </p>
+        <p>Conceptually, you can think about this as the distribution you get when you repeatedly sample $z$ from $p(z)$ and then sample $x_t$ from $p(x_t \mid z, t)$ and accumulate the $x_t$ samples. This is the marginal distribution of $x_t$ at each time $t$. <strong>Note:</strong> by construction, since each $z$ terminates at a sample from the training distribution, this marginal distribution at $t=1$ is the same as the training data distribution $p(z)$.</p>
+        
+        <p>Using Bayes theorem, we can then write the posterior distribution of $z$ given $x_t$ and $t$ as $p(z \mid x_t, t) \propto p(x_t \mid z, t)$ (since $p(z)$ is a constant). In practice we will not need to calculate it, but we do need to understand what it means to explain GM.</p>
+    </section>
+
+    <section>
+        <h2>3. A concrete example</h2>
+
+        <p>As a working concrete example, we'll consider the case of standard <a href="https://arxiv.org/abs/2210.02747"> flow matching</a>, where the state space is continuous, $p(x_0)$ is a Gaussian distribution, and the conditional path is simply a straight line that points towards $x_1$. In this case, $p(x_{t+\Delta t} \mid x_t, z, t)$ is just a point mass at $x_t + \frac{(x_1 - x_t)\Delta t}{1-t}$.</p>
+        
+        <p>With this example, $p(z \mid x_t, t)$ is simple to compute. There is no noise in the conditional process, so the only source of uncertainty is in the prior $p(x_0)$. Given $x_t$ and $t$, we can thus compute $p(z \mid x_t, t)$ for each $z$ proportional to the probability of $x_0$ under the Gaussian prior $p(x_0)$, and we can get $x_0$ by extrapolating backwards from $x_1$ through $x_t$:
+        $$ x_0 = -t \cdot \frac{x_1 - x_t}{1-t} $$
+        </p>
+
+        <p>The following interactive figure shows an example with a one-dimensional state, where you control $t$ and $x_t$, and $p(z \mid x_t, t)$ is shown as the opacity of the blue lines. Move around a little and understand how the training data points at $t=1$ get reweighted as $t$ and $x_t$ change.</p>
     </section>
 
     <!-- Interactive Figure 1: The Posterior -->
     <div class="interactive-figure">
-        <h4 style="margin-top:0;">Viz 1: The Time-Dependent Posterior</h4>
+        <h4 style="margin-top:0;">$p(z \mid x_t, t)$</h4>
         <canvas id="posteriorCanvas" width="600" height="450"></canvas>
         
         <div class="controls">
@@ -172,31 +205,43 @@
 
         <div class="caption">
             <strong>Instructions:</strong> Move the <span style="color:green">Green Dot</span> ($x$). 
-            The opacity of the <span style="color:blue">Blue Lines</span> represents the posterior probability $p(z|x,t)$.
-            <br>
-            The posterior averaged velocity $\bar{u}_t(x)$ can be shown as a red arrow (hidden in this viz).
-            <br>
-            Notice that at $t=0$, weights are based on the Prior (center). As $t \to 1$, weights depend on distance to the nearest $Z$.
+            The opacity of the <span style="color:blue">Blue Lines</span> represents the posterior probability $p(z|x_t,t)$.
         </div>
     </div>
 
     <section>
-        <h2>3. The “resample–$Z$” marginal process</h2>
+        
 
-        <p>We define a hypothetical process using a simple algorithm:</p>
+
+
+        <h2>4. A “resample–$z$” process</h2>
+
+        <p>Stepping away from our concrete example, back to the general case, we can define a hypothetical process using a simple algorithm:</p>
         <blockquote>
-            Given $X^{(\Delta t)}_t = x$:
+            Given $x_t$ at time $t$:
             <ol>
-                <li>Sample a fresh latent $Z$ from the posterior $p(z \mid x, t)$;</li>
-                <li>Evolve one tiny step towards that $Z$:
-                $$ x_{new} = x + \frac{Z - x}{1-t} \Delta t $$
+                <li>Sample a fresh latent $z$ from the posterior $p(z \mid x_t, t)$;</li>
+                <li>Evolve one tiny step towards that $z$:
+                $$ x_{t+\Delta t} = x_t + \frac{z - x_t}{1-t} \Delta t $$
                 </li>
             </ol>
         </blockquote>
 
-        <p>If the step size is larger, we "hold" a specific $Z$ for longer, leading to a more "jagged" path, but as $\Delta t \to 0$, 
-            the random fluctuations cancel out, and the path follows the expected velocity (the smooth average). 
-        </p>
+
+
+     <!-- Why resampling preserves marginals -->
+     <div style="margin: 1.2rem 0;">
+        <h3>Why this preserves the marginal path \(p_t\)</h3>
+        <p>The resample–and–step chain exactly matches the one–time marginals of the original conditional construction. The reason is simple:</p>
+        <ul>
+            <li><strong>Same joint at time \(t\):</strong> In the original model, sampling \(Z \sim p_{\text{data}}\) and then \(X_t \sim p_t(\cdot \mid Z)\) induces some joint law for \((Z, X_t)\). In the resampling chain, we first have \(X_t \sim p_t\), then draw \(Z \sim p(z \mid X_t, t)\). By Bayes’ rule these two procedures produce the <em>same</em> joint distribution for \((Z, X_t)\) at time \(t\).</li>
+            <li><strong>Same tiny step given \(Z\):</strong> From that shared \((Z, X_t)\), both constructions apply the <em>same</em> conditional transition kernel \(K^{(Z)}_{t+\Delta t \mid t}(\cdot \mid X_t)\) to obtain the next state.</li>
+            <li><strong>Therefore same next marginal:</strong> Because both start from the same \((Z, X_t)\) law and use the same kernel, the distribution of \(X_{t+\Delta t}\) is identical in both. Hence, if \(X_t \sim p_t\), then \(X_{t+\Delta t} \sim p_{t+\Delta t}\).</li>
+        </ul>
+        <p>Iterating over steps keeps the whole grid of marginals \(\{p_t\}\) intact, and letting \(\Delta t \to 0\) preserves the continuous path. A short Bayes–rule proof appears in the appendix of the note.</p>
+    </div>
+
+    <p>This interactive figure shows...</p>
     </section>
 
     <!-- Interactive Figure 2: Resample vs Average -->
@@ -226,6 +271,14 @@
             <span style="color:blue">Blue Points:</span> Opacity indicates the posterior weight $p(z|x,t)$ for the Hero particle.
         </div>
     </div>
+
+    <h3>The infinite switching limit</h3>
+
+    <p>If the step size is larger, we "hold" a specific $Z$ for longer, leading to a more "jagged" path, but as $\Delta t \to 0$, 
+        the random fluctuations cancel out, and the path follows the expected velocity (the smooth average). 
+    </p>
+
+   
 
     <!-- LOGIC -->
     <script>
@@ -943,7 +996,7 @@
     </script>
 
     <section>
-        <h2>4. Posterior–averaged tiny step (and the red arrow)</h2>
+        <h2>5. Posterior–averaged tiny step (and the red arrow)</h2>
         <p>In the “resample–and–step” view, we repeatedly (i) look at the current $x$, (ii) resample a fresh $Z \sim p(z \mid x,t)$, and (iii) take one tiny step using the conditional rule for that $Z$. As the step size $\Delta t \to 0$, the randomness from resampling washes out and what remains is the <em>average tiny step</em> at $(t,x)$.</p>
         <p>For simple flow matching, the conditional velocity is $u_t(x\mid z) = \dfrac{z - x}{1-t}$. The <em>posterior–averaged velocity</em> is</p>
         <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \E\!\left[\,u_t(x\mid Z)\,\middle|\, X_t = x \right] \;=\; \E\!\left[\,\frac{Z - x}{1-t}\,\middle|\, x,t \right]. $$</p>
@@ -1027,8 +1080,8 @@
             const priorSigmaY = PRIOR_SIGMA_1;
             drawVerticalGaussianHump(ctx3, cvs3.height, priorMeanY, priorSigmaY, 60, '#888');
             ctx3.fillStyle = "#777";
-            ctx3.fillText("Prior (t=0)", 8, Math.max(14, priorMeanY - priorSigmaY - 10));
-            ctx3.fillText("Data (t=1)", cvs3.width - 70, 14);
+            ctx3.fillText("Prior (t=0)", 2, 20);
+            ctx3.fillText("Data (t=1)", cvs3.width - 50, 20);
 
             const tPosX = v3.t * cvs3.width;
 
@@ -1087,7 +1140,7 @@
     </script>
     
     <section>
-        <h2>5. Tiny–step averaging: four concrete cases</h2>
+        <h2>6. Tiny–step averaging: four concrete cases</h2>
         <p>“Average the generator” means “average the <em>infinitesimal</em> step rule.” Below are four common cases and exactly what gets averaged.</p>
 
         <h3>Case I: pure drift (deterministic flow)</h3>
