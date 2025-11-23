@@ -164,11 +164,8 @@
         <canvas id="posteriorCanvas" width="600" height="450"></canvas>
         
         <div class="controls">
-            <button id="btnPlayPosterior">▶ Play Time</button>
-            <label>Time ($t$): <input type="range" id="timeSlider" min="0" max="99" value="50"></label>
-            <span id="timeDisplay">0.50</span>
             <div style="border-left:1px solid #ccc; padding-left:10px; margin-left:10px;">
-                <label>N: <input type="number" id="inputN" value="15" min="1" max="50"></label>
+                <label>N: <input type="number" id="inputN" value="40" min="1" max="100"></label>
                 <button id="btnResampleData" class="secondary">Resample Points</button>
             </div>
         </div>
@@ -204,7 +201,7 @@
 
     <!-- Interactive Figure 2: Resample vs Average -->
     <div class="interactive-figure">
-        <h4 style="margin-top:0;">Viz 2: Resampling Steps vs. Averaged Flow</h4>
+        <h4 style="margin-top:0;">Resampling faster and faster until things are smooth</h4>
         <canvas id="simCanvas" width="800" height="400"></canvas>
         
         <div class="controls">
@@ -238,9 +235,9 @@
         
         // Prior Distribution Parameters (Centered on Canvas)
         const PRIOR_CENTER_1 = { x: 300, y: 225 }; // Center of canvas approx
-        const PRIOR_SIGMA_1 = 120; 
-        const PRIOR_CENTER_2 = { x: 180, y: 200 }; // Center of canvas approx
-        const PRIOR_SIGMA_2 = 60; 
+        const PRIOR_SIGMA_1 = 80; 
+        const PRIOR_CENTER_2 = { x: 120, y: 175 }; // Center of canvas approx
+        const PRIOR_SIGMA_2 = 40; 
 
         function distSq(p1, p2) {
             return (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
@@ -295,6 +292,57 @@
 
             // 3. Normalize
             return expWeights.map(w => w / sumExp);
+        }
+
+        // =========================================
+        // New 1D posterior helpers (for Viz 1 & Viz 3 only)
+        // Keep Viz 2's 2D helpers unchanged
+        // =========================================
+        function gaussianLogPdf1D(y, mean, sigma) {
+            const dy = y - mean;
+            return -(dy * dy) / (2 * sigma * sigma);
+        }
+
+        // y: current state (pixel y), targetsY: array of data states (pixel y)
+        // t in [0,1), prior specified by (meanY, sigmaY)
+        function getPosteriorWeights1D(y, targetsY, t, meanY, sigmaY) {
+            const t_safe = Math.min(Math.max(t, 0), 0.9999);
+            const one_minus_t = 1 - t_safe;
+            let logWeights = [];
+            let maxLogW = -Infinity;
+            for (let zy of targetsY) {
+                const y0 = (y - t_safe * zy) / one_minus_t;
+                const lw = gaussianLogPdf1D(y0, meanY, sigmaY);
+                logWeights.push(lw);
+                if (lw > maxLogW) maxLogW = lw;
+            }
+            let sumExp = 0;
+            const expW = [];
+            for (let lw of logWeights) {
+                const w = Math.exp(lw - maxLogW);
+                expW.push(w);
+                sumExp += w;
+            }
+            return expW.map(w => w / sumExp);
+        }
+
+        // Draw a vertical Gaussian "hump" along the left edge (x from 0 toward right),
+        // hinting that mass "comes from the left" of the y-axis.
+        function drawVerticalGaussianHump(ctx, height, meanY, sigmaY, maxWidth, color) {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.15;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            for (let y = 0; y <= height; y += 2) {
+                const pdf = Math.exp(-((y - meanY) * (y - meanY)) / (2 * sigmaY * sigmaY));
+                const x = Math.min(maxWidth, maxWidth * pdf);
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(0, height);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
         }
 
         function drawArrow(ctx, fromX, fromY, toX, toY, color) {
@@ -380,64 +428,46 @@
         // =========================================
         const cvs1 = document.getElementById('posteriorCanvas');
         const ctx1 = cvs1.getContext('2d');
-        const timeSlider = document.getElementById('timeSlider');
-        const timeDisplay = document.getElementById('timeDisplay');
-        const btnPlay = document.getElementById('btnPlayPosterior');
         const inputN = document.getElementById('inputN');
         const btnResampleData = document.getElementById('btnResampleData');
 
         let v1 = {
-            mouse: { x: 300, y: 100 },
+            stateY: 100,
             t: 0.5,
-            targets: [],
-            playing: false,
+            targetsY: [],
             animId: null,
             showArrow: false
         };
 
         function initV1Data() {
             const n = parseInt(inputN.value) || 4;
-            v1.targets = [];
-            for(let i=0; i<n; i++){
-                v1.targets.push({
-                    x: Math.random() * (cvs1.width - 100) + 50,
-                    y: Math.random() * (cvs1.height - 150) + 100 // Keep slightly lower
-                });
+            v1.targetsY = [];
+            for (let i = 0; i < n; i++) {
+                let y = (Math.random()+Math.random()+Math.random())/3 * 200 - 100;
+                if (Math.random() < 0.3) {
+                    v1.targetsY.push(y + 125);
+                } else {
+                    v1.targetsY.push(y + 325);
+                }
             }
         }
 
         // Inputs
         cvs1.addEventListener('mousemove', e => {
             const r = cvs1.getBoundingClientRect();
-            v1.mouse.x = e.clientX - r.left;
-            v1.mouse.y = e.clientY - r.top;
+            v1.t = Math.min(Math.max((e.clientX - r.left) / cvs1.width, 0), 1);
+            v1.stateY = e.clientY - r.top;
         });
         cvs1.addEventListener('touchmove', e => {
             e.preventDefault();
             const r = cvs1.getBoundingClientRect();
-            v1.mouse.x = e.touches[0].clientX - r.left;
-            v1.mouse.y = e.touches[0].clientY - r.top;
+            v1.t = Math.min(Math.max((e.touches[0].clientX - r.left) / cvs1.width, 0), 1);
+            v1.stateY = e.touches[0].clientY - r.top;
         }, {passive:false});
-
-        timeSlider.addEventListener('input', (e) => {
-            v1.t = parseFloat(e.target.value) / 100;
-            timeDisplay.textContent = v1.t.toFixed(2);
-        });
-
-        btnPlay.addEventListener('click', () => {
-            v1.playing = !v1.playing;
-            btnPlay.textContent = v1.playing ? "⏸ Pause" : "▶ Play Time";
-        });
 
         btnResampleData.addEventListener('click', initV1Data);
 
         function loopV1() {
-            if(v1.playing) {
-                v1.t += 0.001;
-                if(v1.t >= 1.0) v1.t = 0;
-                timeSlider.value = v1.t * 100;
-                timeDisplay.textContent = v1.t.toFixed(2);
-            }
             drawV1();
             requestAnimationFrame(loopV1);
         }
@@ -445,63 +475,59 @@
         function drawV1() {
             ctx1.clearRect(0, 0, cvs1.width, cvs1.height);
 
-            // Draw Prior Region (faint)
-            ctx1.strokeStyle = "#eee";
-            ctx1.setLineDash([5, 5]);
-            ctx1.beginPath();
-            ctx1.arc(PRIOR_CENTER_1.x, PRIOR_CENTER_1.y, PRIOR_SIGMA_1, 0, Math.PI*2);
-            ctx1.stroke();
-            ctx1.setLineDash([]);
-            ctx1.fillStyle = "#ccc";
-            ctx1.fillText("Prior Distribution", PRIOR_CENTER_1.x - 40, PRIOR_CENTER_1.y);
+            // Axes: x-axis is time [0,1], y-axis is 1D state
+            // Draw a vertical Gaussian hump at x ~ 0 indicating prior over X0
+            const priorMeanY = PRIOR_CENTER_1.y;
+            const priorSigmaY = PRIOR_SIGMA_1;
+            drawVerticalGaussianHump(ctx1, cvs1.height, priorMeanY, priorSigmaY, 60, '#888');
+            ctx1.fillStyle = "#777";
+            ctx1.fillText("Prior (t=0)", 2, 20);
+            ctx1.fillText("Data (t=1)", cvs1.width - 50, 20);
 
-            // Compute Weights
-            const weights = getPosteriorWeights(v1.mouse, v1.targets, v1.t, PRIOR_CENTER_1, PRIOR_SIGMA_1);
+            // Current time position on x-axis
+            const tPosX = v1.t * cvs1.width;
 
-            // Draw Connections
-            v1.targets.forEach((z, i) => {
+            // Compute 1D posterior weights
+            const weights = getPosteriorWeights1D(v1.stateY, v1.targetsY, v1.t, priorMeanY, priorSigmaY);
+
+            // Draw blue worldlines: (x=1,z) -> (t,v1.stateY) -> (x=0,x0)
+            const t_safe = Math.min(v1.t, 0.9999);
+            const one_minus_t = 1 - t_safe;
+            v1.targetsY.forEach((zy, i) => {
                 const w = weights[i];
-                if (w > 0.001) {
-                    ctx1.beginPath();
-                    ctx1.moveTo(v1.mouse.x, v1.mouse.y);
-                    ctx1.lineTo(z.x, z.y);
-                    ctx1.strokeStyle = `rgba(0, 0, 255, ${w})`;
-                    ctx1.lineWidth = w * 4 + 1;
-                    ctx1.stroke();
-                }
-                
-                // Target Dot
+                if (w <= 0.001) return;
+                const y0 = (v1.stateY - t_safe * zy) / one_minus_t;
                 ctx1.beginPath();
-                ctx1.arc(z.x, z.y, 6, 0, Math.PI*2);
-                ctx1.fillStyle = '#0056b3';
+                ctx1.moveTo(cvs1.width - 6, zy);
+                ctx1.lineTo(tPosX, v1.stateY);
+                ctx1.lineTo(6, y0);
+                ctx1.strokeStyle = `rgba(0, 0, 255, ${w})`;
+                ctx1.lineWidth = w * 4 + 1;
+                ctx1.stroke();
+            });
+
+            // Draw data points at t=1 (right edge)
+            v1.targetsY.forEach((zy) => {
+                ctx1.beginPath();
+                ctx1.arc(cvs1.width - 6, zy, 5, 0, Math.PI * 2);
+                // 50% opacity
+                ctx1.fillStyle = 'rgba(0, 0, 255, 0.5)';
                 ctx1.fill();
             });
 
-            // Compute Average Velocity
-            // u_t(x|z) = (z - x) / (1 - t)
-            // Average = Sum w_i * (z_i - x) / (1 - t)
-            let avgVx = 0, avgVy = 0;
-            const t_safe = Math.min(v1.t, 0.99);
-            const scale = 1 / (1 - t_safe);
-            
-            v1.targets.forEach((z, i) => {
-                avgVx += weights[i] * (z.x - v1.mouse.x);
-                avgVy += weights[i] * (z.y - v1.mouse.y);
-            });
-            
-            // Draw Mouse
+            // Draw the green cursor at (t, stateY)
             ctx1.beginPath();
-            ctx1.arc(v1.mouse.x, v1.mouse.y, 8, 0, Math.PI*2);
+            ctx1.arc(tPosX, v1.stateY, 8, 0, Math.PI*2);
             ctx1.fillStyle = 'green';
             ctx1.fill();
-
-            // Draw Velocity Vector
-            const visScale = 1.0; 
-            const dirX = avgVx; 
-            const dirY = avgVy;
-            if (v1.showArrow) {
-                drawArrow(ctx1, v1.mouse.x, v1.mouse.y, v1.mouse.x + dirX, v1.mouse.y + dirY, 'red');
-            }
+            // t overlay near the green dot
+            ctx1.save();
+            ctx1.fillStyle = '#333';
+            ctx1.font = '12px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+            const tx1 = cvs1.width/2;
+            const ty1 = 20;
+            ctx1.fillText(`t=${v1.t.toFixed(2)}`, tx1, ty1);
+            ctx1.restore();
         }
 
         initV1Data();
@@ -530,10 +556,20 @@
         ];
 
         // Fixed Targets for Sim
-        const simTargets = [
-            { x: 750, y: 100 }, { x: 780, y: 120 }, { x: 740, y: 130 }, 
-            { x: 750, y: 280 }, { x: 780, y: 260 }, { x: 730, y: 290 }
-        ];
+        //const simTargets = [
+        //    { x: 750, y: 100 }, { x: 780, y: 120 }, { x: 740, y: 130 }, 
+        //    { x: 750, y: 280 }, { x: 780, y: 260 }, { x: 730, y: 290 }
+        //];
+        //Sample these randomly from two gaussians which are ventered on the previously hardcoded points.
+        simTargets = [];
+        for (let i = 0; i < 40; i++) {
+            x = (Math.random()+Math.random()+Math.random())/3 * 50 + 750;
+            y = (Math.random()+Math.random()+Math.random())/3 * 100 + 50;
+            if (Math.random() < 0.3) {
+                y += 125;
+            }
+            simTargets.push({ x, y});
+        }
 
         let sim = {
             mode: 'resample', 
@@ -725,6 +761,10 @@
         function drawSim() {
             ctx2.clearRect(0, 0, cvs2.width, cvs2.height);
 
+            ctx2.fillStyle = "#777";
+            ctx2.fillText("Prior (t=0)", PRIOR_CENTER_2.x - 40, 20);
+            ctx2.fillText("Data (t=1)", cvs2.width - 50, 20);
+
             // Identify Hero
             const hero = sim.particles[0];
 
@@ -736,8 +776,8 @@
                 ctx2.beginPath();
                 ctx2.arc(z.x, z.y, 6, 0, Math.PI*2);
                 
-                // Base Outline
-                ctx2.strokeStyle = '#0056b3';
+                // Base Outline, with 50% opacity
+                ctx2.strokeStyle = 'rgba(0, 86, 179, 0.25)';
                 ctx2.lineWidth = 2;
                 ctx2.stroke();
 
@@ -902,17 +942,22 @@
 
     </script>
 
+    <section>
+        <h2>4. Posterior–averaged tiny step (and the red arrow)</h2>
+        <p>In the “resample–and–step” view, we repeatedly (i) look at the current $x$, (ii) resample a fresh $Z \sim p(z \mid x,t)$, and (iii) take one tiny step using the conditional rule for that $Z$. As the step size $\Delta t \to 0$, the randomness from resampling washes out and what remains is the <em>average tiny step</em> at $(t,x)$.</p>
+        <p>For simple flow matching, the conditional velocity is $u_t(x\mid z) = \dfrac{z - x}{1-t}$. The <em>posterior–averaged velocity</em> is</p>
+        <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \E\!\left[\,u_t(x\mid Z)\,\middle|\, X_t = x \right] \;=\; \E\!\left[\,\frac{Z - x}{1-t}\,\middle|\, x,t \right]. $$</p>
+        <p>The widget below shows this averaged direction as a <span style="color:#d63384; font-weight:bold;">red arrow</span>. The <span style="color:#0056b3; font-weight:bold;">blue lines</span> indicate the posterior weights over candidate $z$’s; the arrow is the weighted average of their directions toward $x$.</p>
+    </section>
+
     <!-- Interactive Figure 3: Posterior with Arrow -->
     <div class="interactive-figure">
         <h4 style="margin-top:0;">Viz 3: The Time-Dependent Posterior (with Averaged Velocity Arrow)</h4>
         <canvas id="posteriorCanvas3" width="600" height="450"></canvas>
         
         <div class="controls">
-            <button id="btnPlayPosterior3">▶ Play Time</button>
-            <label>Time ($t$): <input type="range" id="timeSlider3" min="0" max="99" value="50"></label>
-            <span id="timeDisplay3">0.50</span>
             <div style="border-left:1px solid #ccc; padding-left:10px; margin-left:10px;">
-                <label>N: <input type="number" id="inputN3" value="15" min="1" max="50"></label>
+                <label>N: <input type="number" id="inputN3" value="40" min="1" max="100"></label>
                 <button id="btnResampleData3" class="secondary">Resample Points</button>
             </div>
         </div>
@@ -921,7 +966,7 @@
             <strong>Instructions:</strong> Move the <span style="color:green">Green Dot</span> ($x$). 
             The opacity of the <span style="color:blue">Blue Lines</span> represents the posterior probability $p(z|x,t)$.
             <br>
-            The <span style="color:red">Red Arrow</span> shows the posterior averaged velocity $\bar{u}_t(x)$.
+            The <span style="color:red">Red Arrow</span> points to the posterior-averaged $X_1$ (hits the $t=1$ line).
         </div>
     </div>
 
@@ -931,63 +976,45 @@
         // =========================================
         const cvs3 = document.getElementById('posteriorCanvas3');
         const ctx3 = cvs3.getContext('2d');
-        const timeSlider3 = document.getElementById('timeSlider3');
-        const timeDisplay3 = document.getElementById('timeDisplay3');
-        const btnPlay3 = document.getElementById('btnPlayPosterior3');
         const inputN3 = document.getElementById('inputN3');
         const btnResampleData3 = document.getElementById('btnResampleData3');
 
         let v3 = {
-            mouse: { x: 300, y: 100 },
+            stateY: 100,
             t: 0.5,
-            targets: [],
-            playing: false,
+            targetsY: [],
             animId: null
         };
 
         function initV3Data() {
             const n = parseInt(inputN3.value) || 4;
-            v3.targets = [];
-            for(let i=0; i<n; i++){
-                v3.targets.push({
-                    x: Math.random() * (cvs3.width - 100) + 50,
-                    y: Math.random() * (cvs3.height - 150) + 100
-                });
+            v3.targetsY = [];
+            for (let i = 0; i < n; i++) {
+                let y = (Math.random()+Math.random()+Math.random())/3 * 200 - 100;
+                if (Math.random() < 0.3) {
+                    v3.targetsY.push(y + 125);
+                } else {
+                    v3.targetsY.push(y + 325);
+                }
             }
         }
 
         // Inputs
         cvs3.addEventListener('mousemove', e => {
             const r = cvs3.getBoundingClientRect();
-            v3.mouse.x = e.clientX - r.left;
-            v3.mouse.y = e.clientY - r.top;
+            v3.t = Math.min(Math.max((e.clientX - r.left) / cvs3.width, 0), 1);
+            v3.stateY = e.clientY - r.top;
         });
         cvs3.addEventListener('touchmove', e => {
             e.preventDefault();
             const r = cvs3.getBoundingClientRect();
-            v3.mouse.x = e.touches[0].clientX - r.left;
-            v3.mouse.y = e.touches[0].clientY - r.top;
+            v3.t = Math.min(Math.max((e.touches[0].clientX - r.left) / cvs3.width, 0), 1);
+            v3.stateY = e.touches[0].clientY - r.top;
         }, {passive:false});
-
-        timeSlider3.addEventListener('input', (e) => {
-            v3.t = parseFloat(e.target.value) / 100;
-            timeDisplay3.textContent = v3.t.toFixed(2);
-        });
-
-        btnPlay3.addEventListener('click', () => {
-            v3.playing = !v3.playing;
-            btnPlay3.textContent = v3.playing ? "⏸ Pause" : "▶ Play Time";
-        });
 
         btnResampleData3.addEventListener('click', initV3Data);
 
         function loopV3() {
-            if(v3.playing) {
-                v3.t += 0.001;
-                if(v3.t >= 1.0) v3.t = 0;
-                timeSlider3.value = v3.t * 100;
-                timeDisplay3.textContent = v3.t.toFixed(2);
-            }
             drawV3();
             requestAnimationFrame(loopV3);
         }
@@ -995,60 +1022,120 @@
         function drawV3() {
             ctx3.clearRect(0, 0, cvs3.width, cvs3.height);
 
-            // Draw Prior Region (faint)
-            ctx3.strokeStyle = "#eee";
-            ctx3.setLineDash([5, 5]);
-            ctx3.beginPath();
-            ctx3.arc(PRIOR_CENTER_1.x, PRIOR_CENTER_1.y, PRIOR_SIGMA_1, 0, Math.PI*2);
-            ctx3.stroke();
-            ctx3.setLineDash([]);
-            ctx3.fillStyle = "#ccc";
-            ctx3.fillText("Prior Distribution", PRIOR_CENTER_1.x - 40, PRIOR_CENTER_1.y);
+            // Axes and prior hump at x ~ 0
+            const priorMeanY = PRIOR_CENTER_1.y;
+            const priorSigmaY = PRIOR_SIGMA_1;
+            drawVerticalGaussianHump(ctx3, cvs3.height, priorMeanY, priorSigmaY, 60, '#888');
+            ctx3.fillStyle = "#777";
+            ctx3.fillText("Prior (t=0)", 8, Math.max(14, priorMeanY - priorSigmaY - 10));
+            ctx3.fillText("Data (t=1)", cvs3.width - 70, 14);
 
-            // Compute Weights
-            const weights = getPosteriorWeights(v3.mouse, v3.targets, v3.t, PRIOR_CENTER_1, PRIOR_SIGMA_1);
+            const tPosX = v3.t * cvs3.width;
 
-            // Draw Connections
-            v3.targets.forEach((z, i) => {
+            // Compute 1D posterior weights
+            const weights = getPosteriorWeights1D(v3.stateY, v3.targetsY, v3.t, priorMeanY, priorSigmaY);
+
+            // Blue worldlines across time
+            const t_safe = Math.min(v3.t, 0.9999);
+            const one_minus_t = 1 - t_safe;
+            v3.targetsY.forEach((zy, i) => {
                 const w = weights[i];
-                if (w > 0.001) {
-                    ctx3.beginPath();
-                    ctx3.moveTo(v3.mouse.x, v3.mouse.y);
-                    ctx3.lineTo(z.x, z.y);
-                    ctx3.strokeStyle = `rgba(0, 0, 255, ${w})`;
-                    ctx3.lineWidth = w * 4 + 1;
-                    ctx3.stroke();
-                }
-                
-                // Target Dot
+                if (w <= 0.001) return;
+                const y0 = (v3.stateY - t_safe * zy) / one_minus_t;
                 ctx3.beginPath();
-                ctx3.arc(z.x, z.y, 6, 0, Math.PI*2);
-                ctx3.fillStyle = '#0056b3';
+                ctx3.moveTo(cvs3.width - 6, zy);
+                ctx3.lineTo(tPosX, v3.stateY);
+                ctx3.lineTo(6, y0);
+                ctx3.strokeStyle = `rgba(0, 0, 255, ${w})`;
+                ctx3.lineWidth = w * 4 + 1;
+                ctx3.stroke();
+            });
+
+            // Data points at t=1
+            v3.targetsY.forEach((zy) => {
+                ctx3.beginPath();
+                ctx3.arc(cvs3.width - 6, zy, 5, 0, Math.PI * 2);
+                ctx3.fillStyle = 'rgba(0, 0, 255, 0.25)';
                 ctx3.fill();
             });
 
-            // Compute Average Velocity
-            let avgVx = 0, avgVy = 0;
-            const t_safe = Math.min(v3.t, 0.99);
-            v3.targets.forEach((z, i) => {
-                avgVx += weights[i] * (z.x - v3.mouse.x);
-                avgVy += weights[i] * (z.y - v3.mouse.y);
-            });
-
-            // Draw Mouse
+            // Green point (t, stateY)
             ctx3.beginPath();
-            ctx3.arc(v3.mouse.x, v3.mouse.y, 8, 0, Math.PI*2);
+            ctx3.arc(tPosX, v3.stateY, 8, 0, Math.PI*2);
             ctx3.fillStyle = 'green';
             ctx3.fill();
 
-            // Draw Velocity Vector (always shown in Viz 3)
-            const dirX = avgVx; 
-            const dirY = avgVy;
-            drawArrow(ctx3, v3.mouse.x, v3.mouse.y, v3.mouse.x + dirX, v3.mouse.y + dirY, 'red');
+            // Red arrow: point to posterior-averaged X1 on the t=1 line
+            let yAvg1 = 0;
+            v3.targetsY.forEach((zy, i) => {
+                yAvg1 += weights[i] * zy;
+            });
+            drawArrow(ctx3, tPosX, v3.stateY, cvs3.width - 6, yAvg1, 'red');
+
+            // t overlay near the green dot
+            ctx3.save();
+            ctx3.fillStyle = '#333';
+            ctx3.font = '12px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+            const tx3 = cvs3.width/2;
+            const ty3 = 20;
+            ctx3.fillText(`t=${v3.t.toFixed(2)}`, tx3, ty3);
+            ctx3.restore();
         }
 
         initV3Data();
         loopV3();
     </script>
+    
+    <section>
+        <h2>5. Tiny–step averaging: four concrete cases</h2>
+        <p>“Average the generator” means “average the <em>infinitesimal</em> step rule.” Below are four common cases and exactly what gets averaged.</p>
+
+        <h3>Case I: pure drift (deterministic flow)</h3>
+        <p>Assume the dynamics are purely deterministic with a velocity field $u_t(\cdot \mid z)$. Over a tiny interval, a conditional step looks like</p>
+        <p style="text-align:center;">$$ x_{\text{new}} \approx x + u_t(x\mid z)\,\Delta t. $$</p>
+        <p>Resampling $Z \sim p(z\mid x,t)$ every tiny step produces, in the limit, the same motion as a single deterministic flow with the <em>posterior–averaged velocity</em></p>
+        <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \E\!\left[u_t(x\mid Z)\mid X_t = x\right]. $$</p>
+        <p>For a discrete set of candidates $z_1,\dots,z_N$ with posterior weights $w_k(x,t)=p(z_k\mid x,t)$, this expectation becomes</p>
+        <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,u_t(x\mid z_k). $$</p>
+        <p>In simple flow matching, $u_t(x\mid z_k)=\dfrac{z_k - x}{1-t}$, so</p>
+        <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \frac{1}{1-t}\sum_{k=1}^N w_k(x,t)\,(z_k - x). $$</p>
+        <p><strong>1D sanity check.</strong> If $u_t(x\mid z)$ is either $v_1$ or $v_2$ with posterior weights $\alpha$ and $1-\alpha$, then many tiny resampling steps behave like a single drift with speed $\alpha v_1 + (1-\alpha)v_2$. The step–to–step randomness averages out as $\Delta t \to 0$.</p>
+
+        <h3>Case II: diffusion (Gaussian noise)</h3>
+        <p>Now there’s no drift, only Gaussian noise with scale $\sigma_t(x\mid z)$:</p>
+        <p style="text-align:center;">$$ x_{\text{new}} \approx x + \sigma_t(x\mid z)\,\sqrt{\Delta t}\,\xi, \quad \xi \sim \mathcal{N}(0,I). $$</p>
+        <p>What matters at $O(\Delta t)$ is the <em>variance per unit time</em> $\Sigma_t(x\mid z) = \sigma_t(x\mid z)\sigma_t(x\mid z)^\top$. After resampling, variances add and we get an effective diffusion with</p>
+        <p style="text-align:center;">$$ \bar{\Sigma}_t(x) \;=\; \E\!\left[\Sigma_t(x\mid Z)\mid X_t = x\right]. $$</p>
+        <p>With discrete $z_k$ and weights $w_k(x,t)$:</p>
+        <p style="text-align:center;">$$ \bar{\Sigma}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\Sigma_t(x\mid z_k). $$</p>
+        <p>In 1D:</p>
+        <p style="text-align:center;">$$ \bar{\sigma}_t^2(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\sigma_t^2(x\mid z_k). $$</p>
+        <p><strong>Key intuition.</strong> We average <em>variances</em>, not standard deviations. In 1D that’s $\bar{\sigma}_t^2(x) = \E[\sigma_t^2(x\mid Z)\mid x,t]$.</p>
+
+        <h3>Case III: continuous–time Markov chains (finite states)</h3>
+        <p>For a finite–state CTMC, the primitives are transition <em>rates</em> $q_t(j\mid i, z)$. Over $\Delta t$, the chance to jump $i \to j$ is $q_t(j\mid i, z)\,\Delta t$ (to first order). Resampling then averaging yields an effective chain with rates</p>
+        <p style="text-align:center;">$$ \bar{q}_t(j\mid i) \;=\; \E\!\left[q_t(j\mid i, Z)\mid X_t = i\right]. $$</p>
+        <p>Equivalently, if $z_1,\dots,z_N$ and $w_k(i,t)=p(z_k\mid X_t=i,t)$:</p>
+        <p style="text-align:center;">$$ \bar{q}_t(j\mid i) \;=\; \sum_{k=1}^N w_k(i,t)\,q_t(j\mid i, z_k). $$</p>
+        <p><strong>Two–state example.</strong> If the only jump is $A \to B$ with latent–dependent rate $\lambda(Z)$, then the effective leave–$A$ rate is $\bar{\lambda}_t = \E[\lambda(Z)\mid X_t=A]$.</p>
+
+        <h3>Case IV: jump processes in continuous space</h3>
+        <p>Each conditional model specifies an <em>intensity</em> $\lambda_t(x\mid z)$ and a <em>destination density</em> $r_t(y\mid x,z)$. Over $\Delta t$, a jump occurs with probability $\lambda_t(x\mid z)\Delta t$; if it does, we land at $Y \sim r_t(\cdot\mid x,z)$.</p>
+        <p>Resampling $Z$ yields an effective jump process with an averaged intensity</p>
+        <p style="text-align:center;">$$ \bar{\lambda}_t(x) \;=\; \E\!\left[\lambda_t(x\mid Z)\mid X_t = x\right], $$</p>
+        <p>and, <em>conditional on a jump</em>, an intensity–weighted destination</p>
+        <p style="text-align:center;">$$ \bar{r}_t(y\mid x) \;=\; \frac{\E\!\left[\lambda_t(x\mid Z)\, r_t(y\mid x, Z)\mid X_t = x\right]}{\bar{\lambda}_t(x)}. $$</p>
+        <p>With discrete $z_k$ and weights $w_k(x,t)=p(z_k\mid x,t)$, these become explicit sums:</p>
+        <p style="text-align:center;">$$ \bar{\lambda}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\lambda_t(x\mid z_k), \qquad
+        \bar{r}_t(y\mid x) \;=\; \frac{\sum_{k=1}^N w_k(x,t)\,\lambda_t(x\mid z_k)\, r_t(y\mid x, z_k)}{\sum_{k=1}^N w_k(x,t)\,\lambda_t(x\mid z_k)}. $$</p>
+        <p><strong>Toy picture: “nudge” vs “teleport.”</strong> Some $z$’s suggest frequent small local nudges; others suggest rare teleports near $z$. The marginal process mixes both: average how often jumps occur (intensity), and, when a jump happens, land according to the intensity–weighted mixture of destinations.</p>
+        <p><strong>Gaussian destination example.</strong> Suppose the conditional destination is Gaussian,
+        $$ r_t(y\mid x, z_k) \;=\; \mathcal{N}\!\big(y;\, m_t(x,z_k),\, S_t(x,z_k)\big). $$
+        Then the effective landing distribution is a <em>mixture of Gaussians</em>
+        $$ \bar{r}_t(y\mid x) \;=\; \sum_{k=1}^N \pi_k(x,t)\; \mathcal{N}\!\big(y;\, m_t(x,z_k),\, S_t(x,z_k)\big), $$
+        with mixture weights
+        $$ \pi_k(x,t) \;=\; \frac{w_k(x,t)\,\lambda_t(x\mid z_k)}{\sum_{\ell=1}^N w_\ell(x,t)\,\lambda_t(x\mid z_\ell)}. $$
+        Here $w_k(x,t)=p(z_k\mid x,t)$ are the posterior weights.</p>
+    </section>
 </body>
 </html>
