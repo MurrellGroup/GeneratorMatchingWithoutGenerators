@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Flow Matching</title>
+    <title>Interactive Flow Matching - Drawable Target</title>
     <style>
         :root {
             --bg: #fbfbfb;
@@ -61,16 +61,21 @@
             cursor: pointer;
             font-weight: 600;
             font-size: 0.85rem;
-            transition: opacity 0.2s;
+            transition: all 0.2s;
         }
-        button:hover { opacity: 0.9; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
         #btn-train { background-color: var(--accent); color: white; }
         #btn-stop { background-color: #e25555; color: white; }
         #btn-gen { background-color: #50b83c; color: white; }
-        #btn-clear { background-color: #888; color: white; }
+        #btn-clear-gen { background-color: #888; color: white; }
         #btn-reset-model { background-color: #f0f0f0; color: #333; border: 1px solid #ccc;}
+        
+        /* Target Controls */
+        #btn-clear-target { background-color: #ff9800; color: white; }
+        #btn-reset-target { background-color: #607d8b; color: white; }
 
         #main {
             flex: 1;
@@ -79,12 +84,14 @@
             justify-content: center;
             align-items: center;
             background-color: #f4f4f4;
+            user-select: none; /* Prevent selection while drawing */
         }
 
         canvas {
             background: white;
             box-shadow: 0 0 20px rgba(0,0,0,0.05);
             border-radius: 4px;
+            cursor: crosshair;
         }
 
         #loss-container {
@@ -125,6 +132,13 @@
         .dot { width: 10px; height: 10px; border-radius: 50%; }
         .line { width: 20px; height: 2px; }
 
+        .tooltip {
+            font-size: 0.75rem;
+            color: #777;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
     </style>
 </head>
 <body>
@@ -137,7 +151,14 @@
             </p>
         </div>
 
-        <h3>Model Architecture</h3>
+        <!-- <h3>Target Distribution (X1)</h3> -->
+        <div class="button-row">
+            <button id="btn-clear-target">Clear / Draw</button>
+            <button id="btn-reset-target">Reset to Spiral</button>
+        </div>
+        <div class="tooltip" id="draw-hint">Using Spiral Preset. Click 'Clear' to draw.</div>
+
+        <!-- <h3>Model Architecture</h3>-->
         <div class="control-group">
             <label>Hidden Layers: <span id="val-depth">3</span></label>
             <input type="range" id="inp-depth" min="1" max="6" value="3">
@@ -150,7 +171,6 @@
 
         <h3>Training Controls</h3>
         <div class="control-group">
-            <!-- Lower bound changed to -5 (1e-5) -->
             <label>Learning Rate: <span id="val-lr">0.001</span></label>
             <input type="range" id="inp-lr" min="-5" max="-1" step="0.1" value="-3">
         </div>
@@ -170,20 +190,20 @@
 
         <h3>Inference / Vis</h3>
         <div class="control-group">
-            <label>Samples to Generate: <span id="val-gen-count">200</span></label>
+            <label>Samples: <span id="val-gen-count">200</span></label>
             <input type="range" id="inp-gen-count" min="50" max="1000" step="50" value="200">
         </div>
         <div class="control-group">
-            <label>Show Trajectories: <span id="val-traj-count">20</span></label>
+            <label>Traj Lines: <span id="val-traj-count">20</span></label>
             <input type="range" id="inp-traj-count" min="0" max="100" step="5" value="20">
         </div>
         <div class="button-row">
             <button id="btn-gen">Generate</button>
-            <button id="btn-clear">Clear</button>
+            <button id="btn-clear-gen">Clear Samples</button>
         </div>
         <div style="margin-top: 10px;">
-            <label><input type="checkbox" id="chk-show-true" checked> Show True Data</label>
-            <label><input type="checkbox" id="chk-show-traj" checked> Show Lines</label>
+            <label><input type="checkbox" id="chk-show-true" checked> Show Target Dist</label>
+            <label><input type="checkbox" id="chk-show-traj" checked> Show Trajectories</label>
         </div>
     </div>
 
@@ -191,7 +211,7 @@
         <canvas id="canvas" width="800" height="800"></canvas>
         <div class="legend">
             <div class="legend-item"><div class="dot" style="background:#5555ff"></div> X0 (Source)</div>
-            <div class="legend-item"><div class="dot" style="background:#ffcc00"></div> X1 (True Target)</div>
+            <div class="legend-item"><div class="dot" style="background:#ffcc00"></div> X1 (Target)</div>
             <div class="legend-item"><div class="dot" style="background:#4caf50"></div> X1 (Generated)</div>
             <div class="legend-item"><div class="line" style="background:#ff8888"></div> Trajectory</div>
         </div>
@@ -231,7 +251,6 @@ class Tensor {
     }
 }
 
-// Matrix Multiplication: C = A * B
 function matmul(A, B) {
     const C = new Tensor(A.rows, B.cols);
     for (let i = 0; i < A.rows; i++) {
@@ -275,7 +294,6 @@ class Linear {
         }
         
         const dInput = new Tensor(this.input.rows, this.input.cols);
-        
         for (let i = 0; i < this.input.rows; i++) {
             for (let j = 0; j < this.outDim; j++) {
                 const g = gradOutput.grad[i * this.outDim + j];
@@ -289,7 +307,6 @@ class Linear {
         }
         return dInput;
     }
-    
     params() { return [this.W, this.b]; }
 }
 
@@ -391,9 +408,14 @@ let model, optimizer;
 let isTraining = false;
 let stepCount = 0;
 let currentLoss = 0;
-let lossHistory = []; // Stores recent loss values
+let lossHistory = []; 
 let generatedSamples = []; // {x, y, traj: [{x,y}...]}
 let animationId;
+
+// Target Distribution State
+let useCustomTarget = false;
+let customTargetPoints = []; // Flat array [x, y, x, y, ...]
+let isDrawing = false;
 
 // Config
 const BATCH_SIZE = 64;
@@ -414,22 +436,27 @@ const inpWidth = document.getElementById('inp-width');
 const inpLr = document.getElementById('inp-lr');
 const inpGenCount = document.getElementById('inp-gen-count');
 const inpTrajCount = document.getElementById('inp-traj-count');
+const drawHint = document.getElementById('draw-hint');
 
 const btnTrain = document.getElementById('btn-train');
 const btnStop = document.getElementById('btn-stop');
 const btnGen = document.getElementById('btn-gen');
-const btnClear = document.getElementById('btn-clear');
+const btnClearGen = document.getElementById('btn-clear-gen');
 const btnReset = document.getElementById('btn-reset-model');
+const btnClearTarget = document.getElementById('btn-clear-target');
+const btnResetTarget = document.getElementById('btn-reset-target');
+
 const chkTrue = document.getElementById('chk-show-true');
 const chkTraj = document.getElementById('chk-show-traj');
 
 // Utils
-const worldToScreen = (x, y) => [CENTER_X + x * VIEW_SCALE, CENTER_Y - y * VIEW_SCALE]; // Flip Y
+const worldToScreen = (x, y) => [CENTER_X + x * VIEW_SCALE, CENTER_Y - y * VIEW_SCALE];
+const screenToWorld = (sx, sy) => [(sx - CENTER_X) / VIEW_SCALE, (CENTER_Y - sy) / VIEW_SCALE];
 
 // --- Data Distributions ---
 
+// Source: Blue Box
 function sampleSource(n) {
-    // Blue Box (Uniform X0) - approx (2, 2)
     const data = new Float32Array(n * 2);
     for(let i=0; i<n; i++) {
         data[i*2] = 2.0 + Math.random() * 1.0;     // x: 2 to 3
@@ -438,22 +465,78 @@ function sampleSource(n) {
     return data;
 }
 
+// Target Logic
 function sampleTarget(n) {
-    // Noisy Spiral
     const data = new Float32Array(n * 2);
-    for(let i=0; i<n; i++) {
-        const rNorm = Math.sqrt(Math.random());
-        const theta = rNorm * 3 * Math.PI; 
-        const r = 0.2 + 2.5 * (theta / (3*Math.PI));
-        
-        const x = -r * Math.cos(theta + 1); 
-        const y = -r * Math.sin(theta + 1);
-        
-        data[i*2] = x + (Math.random()-0.5)*0.15;
-        data[i*2+1] = y + (Math.random()-0.5)*0.15;
+
+    if (useCustomTarget) {
+        if (customTargetPoints.length === 0) {
+            // Fallback if user cleared but didn't draw: Return random noise near center
+            for(let i=0; i<n; i++) {
+                data[i*2] = (Math.random()-0.5)*0.5;
+                data[i*2+1] = (Math.random()-0.5)*0.5;
+            }
+        } else {
+            // Sample from custom points
+            // Since custom points are likely dense, just random pick
+            const numPoints = customTargetPoints.length / 2;
+            for(let i=0; i<n; i++) {
+                const idx = Math.floor(Math.random() * numPoints);
+                data[i*2] = customTargetPoints[idx*2];
+                data[i*2+1] = customTargetPoints[idx*2+1];
+            }
+        }
+    } else {
+        // Default Spiral
+        for(let i=0; i<n; i++) {
+            const rNorm = Math.sqrt(Math.random());
+            const theta = rNorm * 3 * Math.PI; 
+            const r = 0.2 + 2.5 * (theta / (3*Math.PI));
+            
+            const x = -r * Math.cos(theta + 1); 
+            const y = -r * Math.sin(theta + 1);
+            
+            data[i*2] = x + (Math.random()-0.5)*0.15;
+            data[i*2+1] = y + (Math.random()-0.5)*0.15;
+        }
     }
     return data;
 }
+
+// --- Interaction (Painting) ---
+
+function addSprayPoints(ex, ey) {
+    // Add multiple points around cursor to create "spray" and density
+    const rect = canvas.getBoundingClientRect();
+    const sx = (ex - rect.left) * (canvas.width / rect.width);
+    const sy = (ey - rect.top) * (canvas.height / rect.height);
+    
+    const [wx, wy] = screenToWorld(sx, sy);
+    const spread = 0.15; // Spray radius in world coords
+
+    // Add 5 points per event tick
+    for(let k=0; k<5; k++) {
+        // Random point in circle
+        const r = Math.sqrt(Math.random()) * spread;
+        const theta = Math.random() * 2 * Math.PI;
+        
+        customTargetPoints.push(wx + r * Math.cos(theta));
+        customTargetPoints.push(wy + r * Math.sin(theta));
+    }
+}
+
+canvas.addEventListener('mousedown', (e) => {
+    if(!useCustomTarget) return; // Only draw in custom mode
+    isDrawing = true;
+    addSprayPoints(e.clientX, e.clientY);
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!isDrawing) return;
+    addSprayPoints(e.clientX, e.clientY);
+});
+
+window.addEventListener('mouseup', () => { isDrawing = false; });
 
 // --- Model & Training ---
 
@@ -474,14 +557,11 @@ function initModel() {
     lossHistory = [];
     currentLoss = 0;
     
-    // Clear plots
     lossCtx.clearRect(0,0, lossCanvas.width, lossCanvas.height);
     updateStats(0, 0);
-    console.log("Model initialized", config);
 }
 
 function trainStep() {
-    // 1. Sample batch
     const x0_raw = sampleSource(BATCH_SIZE);
     const x1_raw = sampleTarget(BATCH_SIZE);
     
@@ -507,10 +587,8 @@ function trainStep() {
         targetV.data[i*2 + 1] = x1y - x0y;
     }
 
-    // 2. Forward
     const predV = model.forward(modelInput);
 
-    // 3. Loss (MSE)
     let lossSum = 0;
     const gradV = new Tensor(BATCH_SIZE, 2); 
     
@@ -521,14 +599,10 @@ function trainStep() {
     }
     currentLoss = lossSum / BATCH_SIZE;
     
-    // Record history (max 100 points)
     lossHistory.push(currentLoss);
     if(lossHistory.length > 200) lossHistory.shift();
 
-    // 4. Backward
     model.backward(gradV);
-
-    // 5. Update
     optimizer.step();
     
     stepCount++;
@@ -538,7 +612,6 @@ function trainStep() {
 function updateStats(step, loss) {
     elStep.innerHTML = `Step: ${step}<br>Loss: ${loss.toFixed(5)}`;
     document.getElementById('val-lr').innerText = Math.pow(10, parseFloat(inpLr.value)).toExponential(1);
-    
     drawLossChart();
 }
 
@@ -547,7 +620,6 @@ function drawLossChart() {
     const h = lossCanvas.height;
     lossCtx.clearRect(0, 0, w, h);
 
-    // Grid lines for 0, 1, 2, 3
     lossCtx.strokeStyle = '#eee';
     lossCtx.lineWidth = 1;
     lossCtx.font = "10px sans-serif";
@@ -557,22 +629,18 @@ function drawLossChart() {
     
     for(let i=0; i<=maxY; i+=1) {
         const y = h - (i / maxY) * h;
-        lossCtx.beginPath();
-        lossCtx.moveTo(0, y);
-        lossCtx.lineTo(w, y);
-        lossCtx.stroke();
+        lossCtx.beginPath(); lossCtx.moveTo(0, y); lossCtx.lineTo(w, y); lossCtx.stroke();
         lossCtx.fillText(i, 2, y - 2);
     }
 
     if(lossHistory.length < 2) return;
 
-    // Draw Line
     lossCtx.beginPath();
     lossCtx.strokeStyle = '#e25555';
     lossCtx.lineWidth = 2;
 
     for(let i=0; i<lossHistory.length; i++) {
-        const val = Math.min(maxY, Math.max(0, lossHistory[i])); // Clamp 0-3
+        const val = Math.min(maxY, Math.max(0, lossHistory[i])); 
         const x = (i / (lossHistory.length - 1)) * w;
         const y = h - (val / maxY) * h;
         if(i===0) lossCtx.moveTo(x, y);
@@ -587,28 +655,19 @@ function generateSamples() {
     const totalSamples = parseInt(inpGenCount.value);
     const traceCount = parseInt(inpTrajCount.value);
 
-    // Integration steps
     const steps = 20; 
     const dt = 1.0 / steps;
     
-    // Start at x0
     const x0 = sampleSource(totalSamples);
-    
-    // State array: [n, 2]
     let currentX = new Float32Array(x0); 
     
-    // Store trajectories only for the first 'traceCount' particles
     let trajs = [];
     for(let i=0; i<traceCount; i++) {
-        if(i < totalSamples) {
-            trajs.push([{x: currentX[i*2], y: currentX[i*2+1]}]);
-        }
+        if(i < totalSamples) trajs.push([{x: currentX[i*2], y: currentX[i*2+1]}]);
     }
 
     for(let s=0; s<steps; s++) {
         const t = s * dt;
-        
-        // Build input batch
         const input = new Tensor(totalSamples, 3);
         for(let i=0; i<totalSamples; i++) {
             input.data[i*3 + 0] = currentX[i*2];
@@ -618,19 +677,13 @@ function generateSamples() {
         
         const vel = model.forward(input);
         
-        // Update positions
         for(let i=0; i<totalSamples; i++) {
             currentX[i*2] += vel.data[i*2] * dt;
             currentX[i*2+1] += vel.data[i*2+1] * dt;
-            
-            // Only update trace if this particle index is tracked
-            if (i < traceCount) {
-                trajs[i].push({x: currentX[i*2], y: currentX[i*2+1]});
-            }
+            if (i < traceCount) trajs[i].push({x: currentX[i*2], y: currentX[i*2+1]});
         }
     }
 
-    // Add to global generated list
     for(let i=0; i<totalSamples; i++) {
         generatedSamples.push({
             x: currentX[i*2],
@@ -663,29 +716,44 @@ function draw() {
     ctx.moveTo(0, CENTER_Y); ctx.lineTo(CANVAS_SIZE, CENTER_Y);
     ctx.stroke();
 
-    // Draw True Target (Background) - Increased Opacity to 0.6
-    if (chkTrue.checked) {
-        const trueData = sampleTarget(400); 
-        ctx.fillStyle = '#ffcc00';
-        ctx.globalAlpha = 0.6; // Increased
-        for(let i=0; i<400; i++) {
-            const [sx, sy] = worldToScreen(trueData[i*2], trueData[i*2+1]);
-            ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 2*Math.PI); ctx.fill();
-        }
-        ctx.globalAlpha = 1.0;
-    }
-
-    // Draw Source (Reference) - Increased Opacity to 0.3
+    // Draw Source (Reference)
     ctx.fillStyle = '#5555ff';
-    ctx.globalAlpha = 0.3; // Increased
+    ctx.globalAlpha = 0.3;
     const [bx1, by1] = worldToScreen(2, 3);
     const [bx2, by2] = worldToScreen(3, 2);
     ctx.fillRect(bx1, by1, bx2-bx1, by2-by1);
     ctx.globalAlpha = 1.0;
 
+    // Draw True Target
+    if (chkTrue.checked) {
+        ctx.fillStyle = '#ffcc00';
+        
+        if (useCustomTarget) {
+            // Draw all custom points
+            // Small optimization: If points > 10000, skip some?
+            // Canvas handles 10k 1px rects fine usually.
+            const len = customTargetPoints.length / 2;
+            const skip = len > 10000 ? 2 : 1; 
+            
+            ctx.globalAlpha = 0.4; // Transparency allows density to be seen
+            for(let i=0; i<len; i+=skip) {
+                const [sx, sy] = worldToScreen(customTargetPoints[i*2], customTargetPoints[i*2+1]);
+                ctx.fillRect(sx, sy, 2, 2);
+            }
+        } else {
+            // Spiral
+            ctx.globalAlpha = 0.6; 
+            const trueData = sampleTarget(400); 
+            for(let i=0; i<400; i++) {
+                const [sx, sy] = worldToScreen(trueData[i*2], trueData[i*2+1]);
+                ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 2*Math.PI); ctx.fill();
+            }
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
     // Draw Generated
     for(let s of generatedSamples) {
-        // Trajectory
         if (chkTraj.checked && s.traj) {
             ctx.strokeStyle = '#ff8888';
             ctx.lineWidth = 1;
@@ -699,7 +767,6 @@ function draw() {
             ctx.stroke();
         }
 
-        // Point
         const [sx, sy] = worldToScreen(s.x, s.y);
         ctx.fillStyle = '#4caf50';
         ctx.globalAlpha = 0.8;
@@ -712,34 +779,24 @@ function draw() {
 
 function loop() {
     if (isTraining) {
-        // Multiple steps per frame for speed
         for(let k=0; k<5; k++) trainStep();
     }
-    
     draw();
     animationId = requestAnimationFrame(loop);
 }
 
 // --- UI Events ---
 
-inpDepth.addEventListener('input', (e) => {
-    document.getElementById('val-depth').innerText = e.target.value;
-});
-inpWidth.addEventListener('input', (e) => {
-    document.getElementById('val-width').innerText = e.target.value;
-});
+inpDepth.addEventListener('input', (e) => document.getElementById('val-depth').innerText = e.target.value);
+inpWidth.addEventListener('input', (e) => document.getElementById('val-width').innerText = e.target.value);
 inpLr.addEventListener('input', (e) => {
-    document.getElementById('val-lr').innerText = Math.pow(10, parseFloat(e.target.value)).toExponential(1);
-    if(optimizer) optimizer.lr = Math.pow(10, parseFloat(e.target.value));
+    const val = Math.pow(10, parseFloat(e.target.value));
+    document.getElementById('val-lr').innerText = val.toExponential(1);
+    if(optimizer) optimizer.lr = val;
 });
 
-inpGenCount.addEventListener('input', (e) => {
-    document.getElementById('val-gen-count').innerText = e.target.value;
-});
-inpTrajCount.addEventListener('input', (e) => {
-    document.getElementById('val-traj-count').innerText = e.target.value;
-});
-
+inpGenCount.addEventListener('input', (e) => document.getElementById('val-gen-count').innerText = e.target.value);
+inpTrajCount.addEventListener('input', (e) => document.getElementById('val-traj-count').innerText = e.target.value);
 
 btnReset.addEventListener('click', () => {
     initModel();
@@ -747,6 +804,12 @@ btnReset.addEventListener('click', () => {
 });
 
 btnTrain.addEventListener('click', () => {
+    // If Custom mode and no points, warn user (but don't crash)
+    if(useCustomTarget && customTargetPoints.length === 0) {
+        alert("Please draw a target distribution first!");
+        return;
+    }
+
     isTraining = true;
     btnTrain.disabled = true;
     btnStop.disabled = false;
@@ -762,12 +825,20 @@ btnStop.addEventListener('click', () => {
     inpWidth.disabled = false;
 });
 
-btnGen.addEventListener('click', () => {
-    generateSamples();
+btnGen.addEventListener('click', () => generateSamples());
+btnClearGen.addEventListener('click', () => generatedSamples = []);
+
+// Target Control Events
+btnClearTarget.addEventListener('click', () => {
+    useCustomTarget = true;
+    customTargetPoints = []; // Clear
+    drawHint.innerText = "Mode: Custom. Click & Drag on white area to paint target.";
 });
 
-btnClear.addEventListener('click', () => {
-    generatedSamples = [];
+btnResetTarget.addEventListener('click', () => {
+    useCustomTarget = false;
+    customTargetPoints = [];
+    drawHint.innerText = "Mode: Preset (Spiral).";
 });
 
 // --- Init ---
