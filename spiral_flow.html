@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Flow Matching</title>
+    <style>
+        :root {
+            --bg: #fbfbfb;
+            --panel-bg: #ffffff;
+            --text: #333;
+            --border: #ddd;
+            --accent: #4a90e2;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 340px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+
+        h1, h3 { margin: 0 0 5px 0; }
+        h1 { font-size: 1.2rem; color: var(--accent); }
+        h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-top: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label { font-size: 0.8rem; font-weight: 500; display: flex; justify-content: space-between; align-items: center;}
+        input[type=range] { width: 100%; margin: 5px 0;}
+        input[type=number] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; width: 50px; font-size: 0.8rem;}
+
+        .button-row { display: flex; gap: 8px; }
+        
+        button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #btn-train { background-color: var(--accent); color: white; }
+        #btn-stop { background-color: #e25555; color: white; }
+        #btn-gen { background-color: #50b83c; color: white; }
+        #btn-clear { background-color: #888; color: white; }
+        #btn-reset-model { background-color: #f0f0f0; color: #333; border: 1px solid #ccc;}
+
+        #main {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f4f4f4;
+        }
+
+        canvas {
+            background: white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+
+        #loss-container {
+            margin-top: 10px;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            background: #fff;
+            padding: 5px;
+        }
+        #loss-canvas {
+            width: 100%;
+            height: 100px;
+            background: #fafafa;
+            display: block;
+        }
+
+        #stats {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #555;
+            margin-top: 5px;
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            pointer-events: none;
+            font-size: 0.8rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .legend-item:last-child { margin-bottom: 0; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .line { width: 20px; height: 2px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div>
+            <h1>Flow Matching</h1>
+            <p style="font-size: 0.8rem; color: #666; margin-top: 2px; line-height: 1.3;">
+                Training a Vector Field to map Noise (X0) to Data (X1).
+            </p>
+        </div>
+
+        <h3>Model Architecture</h3>
+        <div class="control-group">
+            <label>Hidden Layers: <span id="val-depth">3</span></label>
+            <input type="range" id="inp-depth" min="1" max="6" value="3">
+        </div>
+        <div class="control-group">
+            <label>Neurons per Layer: <span id="val-width">64</span></label>
+            <input type="range" id="inp-width" min="16" max="128" step="16" value="64">
+        </div>
+        <button id="btn-reset-model">Re-Initialize Model</button>
+
+        <h3>Training Controls</h3>
+        <div class="control-group">
+            <!-- Lower bound changed to -5 (1e-5) -->
+            <label>Learning Rate: <span id="val-lr">0.001</span></label>
+            <input type="range" id="inp-lr" min="-5" max="-1" step="0.1" value="-3">
+        </div>
+        <div class="button-row">
+            <button id="btn-train">Start Training</button>
+            <button id="btn-stop" disabled>Pause</button>
+        </div>
+
+        <h3>Loss History</h3>
+        <div id="loss-container">
+            <canvas id="loss-canvas" width="300" height="100"></canvas>
+        </div>
+        <div id="stats">
+            Step: 0<br>
+            Loss: 0.0000
+        </div>
+
+        <h3>Inference / Vis</h3>
+        <div class="control-group">
+            <label>Samples to Generate: <span id="val-gen-count">200</span></label>
+            <input type="range" id="inp-gen-count" min="50" max="1000" step="50" value="200">
+        </div>
+        <div class="control-group">
+            <label>Show Trajectories: <span id="val-traj-count">20</span></label>
+            <input type="range" id="inp-traj-count" min="0" max="100" step="5" value="20">
+        </div>
+        <div class="button-row">
+            <button id="btn-gen">Generate</button>
+            <button id="btn-clear">Clear</button>
+        </div>
+        <div style="margin-top: 10px;">
+            <label><input type="checkbox" id="chk-show-true" checked> Show True Data</label>
+            <label><input type="checkbox" id="chk-show-traj" checked> Show Lines</label>
+        </div>
+    </div>
+
+    <div id="main">
+        <canvas id="canvas" width="800" height="800"></canvas>
+        <div class="legend">
+            <div class="legend-item"><div class="dot" style="background:#5555ff"></div> X0 (Source)</div>
+            <div class="legend-item"><div class="dot" style="background:#ffcc00"></div> X1 (True Target)</div>
+            <div class="legend-item"><div class="dot" style="background:#4caf50"></div> X1 (Generated)</div>
+            <div class="legend-item"><div class="line" style="background:#ff8888"></div> Trajectory</div>
+        </div>
+    </div>
+
+<script>
+/* 
+   TINY DEEP LEARNING LIBRARY (No external deps)
+*/
+
+class Tensor {
+    constructor(rows, cols, data = null) {
+        this.rows = rows;
+        this.cols = cols;
+        this.length = rows * cols;
+        if (data) {
+            this.data = data;
+        } else {
+            this.data = new Float32Array(this.length);
+        }
+        this.grad = new Float32Array(this.length);
+    }
+
+    static randn(rows, cols, scale = 1.0) {
+        const t = new Tensor(rows, cols);
+        for(let i=0; i<t.length; i++) {
+            const u = 1 - Math.random();
+            const v = Math.random();
+            const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            t.data[i] = z * scale;
+        }
+        return t;
+    }
+
+    static zeros(rows, cols) {
+        return new Tensor(rows, cols);
+    }
+}
+
+// Matrix Multiplication: C = A * B
+function matmul(A, B) {
+    const C = new Tensor(A.rows, B.cols);
+    for (let i = 0; i < A.rows; i++) {
+        for (let k = 0; k < A.cols; k++) {
+            const aVal = A.data[i * A.cols + k];
+            for (let j = 0; j < B.cols; j++) {
+                C.data[i * B.cols + j] += aVal * B.data[k * B.cols + j];
+            }
+        }
+    }
+    return C;
+}
+
+class Linear {
+    constructor(inDim, outDim) {
+        // Xavier initialization
+        const scale = Math.sqrt(2.0 / (inDim + outDim));
+        this.W = Tensor.randn(inDim, outDim, scale);
+        this.b = Tensor.zeros(1, outDim);
+        this.inDim = inDim;
+        this.outDim = outDim;
+        this.input = null;
+    }
+
+    forward(input) {
+        this.input = input;
+        const output = matmul(input, this.W);
+        for (let i = 0; i < output.rows; i++) {
+            for (let j = 0; j < output.cols; j++) {
+                output.data[i * output.cols + j] += this.b.data[j];
+            }
+        }
+        return output;
+    }
+
+    backward(gradOutput) {
+        for (let i = 0; i < gradOutput.rows; i++) {
+            for (let j = 0; j < gradOutput.cols; j++) {
+                this.b.grad[j] += gradOutput.grad[i * gradOutput.cols + j];
+            }
+        }
+        
+        const dInput = new Tensor(this.input.rows, this.input.cols);
+        
+        for (let i = 0; i < this.input.rows; i++) {
+            for (let j = 0; j < this.outDim; j++) {
+                const g = gradOutput.grad[i * this.outDim + j];
+                for (let k = 0; k < this.inDim; k++) {
+                    this.W.grad[k * this.outDim + j] += this.input.data[i * this.inDim + k] * g;
+                }
+                for (let k = 0; k < this.inDim; k++) {
+                    dInput.grad[i * this.inDim + k] += g * this.W.data[k * this.outDim + j];
+                }
+            }
+        }
+        return dInput;
+    }
+    
+    params() { return [this.W, this.b]; }
+}
+
+class ReLU {
+    constructor() { this.input = null; }
+    forward(input) {
+        this.input = input;
+        const out = new Tensor(input.rows, input.cols);
+        for(let i=0; i<input.length; i++) {
+            out.data[i] = Math.max(0, input.data[i]);
+        }
+        return out;
+    }
+    backward(gradOutput) {
+        const dInput = new Tensor(this.input.rows, this.input.cols);
+        for(let i=0; i<this.input.length; i++) {
+            dInput.grad[i] = (this.input.data[i] > 0) ? gradOutput.grad[i] : 0;
+        }
+        return dInput;
+    }
+}
+
+class MLP {
+    constructor(layersConfig) {
+        this.layers = [];
+        for(let i=0; i<layersConfig.length - 1; i++) {
+            this.layers.push(new Linear(layersConfig[i], layersConfig[i+1]));
+            if (i < layersConfig.length - 2) {
+                this.layers.push(new ReLU());
+            }
+        }
+    }
+
+    forward(x) {
+        let out = x;
+        for(let layer of this.layers) {
+            out = layer.forward(out);
+        }
+        return out;
+    }
+
+    backward(lossGrad) {
+        let grad = lossGrad;
+        for(let i=this.layers.length-1; i>=0; i--) {
+            grad = this.layers[i].backward(grad);
+        }
+    }
+
+    params() {
+        let p = [];
+        for(let layer of this.layers) {
+            if(layer.params) p.push(...layer.params());
+        }
+        return p;
+    }
+}
+
+class Adam {
+    constructor(params, lr=0.001, beta1=0.9, beta2=0.999) {
+        this.params = params;
+        this.lr = lr;
+        this.beta1 = beta1;
+        this.beta2 = beta2;
+        this.eps = 1e-8;
+        this.t = 0;
+        this.m = params.map(p => new Float32Array(p.length));
+        this.v = params.map(p => new Float32Array(p.length));
+    }
+
+    step() {
+        this.t++;
+        for(let i=0; i<this.params.length; i++) {
+            const p = this.params[i];
+            const grad = p.grad;
+            const m = this.m[i];
+            const v = this.v[i];
+
+            for(let j=0; j<p.length; j++) {
+                const g = grad[j];
+                m[j] = this.beta1 * m[j] + (1 - this.beta1) * g;
+                v[j] = this.beta2 * v[j] + (1 - this.beta2) * g * g;
+                
+                const mHat = m[j] / (1 - Math.pow(this.beta1, this.t));
+                const vHat = v[j] / (1 - Math.pow(this.beta2, this.t));
+                
+                p.data[j] -= this.lr * mHat / (Math.sqrt(vHat) + this.eps);
+                grad[j] = 0;
+            }
+        }
+    }
+}
+
+/* 
+   APPLICATION LOGIC
+*/
+
+// State
+let model, optimizer;
+let isTraining = false;
+let stepCount = 0;
+let currentLoss = 0;
+let lossHistory = []; // Stores recent loss values
+let generatedSamples = []; // {x, y, traj: [{x,y}...]}
+let animationId;
+
+// Config
+const BATCH_SIZE = 64;
+const CANVAS_SIZE = 800;
+const VIEW_SCALE = 100; // pixels per unit
+const CENTER_X = CANVAS_SIZE/2;
+const CENTER_Y = CANVAS_SIZE/2;
+
+// DOM Elements
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const lossCanvas = document.getElementById('loss-canvas');
+const lossCtx = lossCanvas.getContext('2d');
+const elStep = document.getElementById('stats');
+
+const inpDepth = document.getElementById('inp-depth');
+const inpWidth = document.getElementById('inp-width');
+const inpLr = document.getElementById('inp-lr');
+const inpGenCount = document.getElementById('inp-gen-count');
+const inpTrajCount = document.getElementById('inp-traj-count');
+
+const btnTrain = document.getElementById('btn-train');
+const btnStop = document.getElementById('btn-stop');
+const btnGen = document.getElementById('btn-gen');
+const btnClear = document.getElementById('btn-clear');
+const btnReset = document.getElementById('btn-reset-model');
+const chkTrue = document.getElementById('chk-show-true');
+const chkTraj = document.getElementById('chk-show-traj');
+
+// Utils
+const worldToScreen = (x, y) => [CENTER_X + x * VIEW_SCALE, CENTER_Y - y * VIEW_SCALE]; // Flip Y
+
+// --- Data Distributions ---
+
+function sampleSource(n) {
+    // Blue Box (Uniform X0) - approx (2, 2)
+    const data = new Float32Array(n * 2);
+    for(let i=0; i<n; i++) {
+        data[i*2] = 2.0 + Math.random() * 1.0;     // x: 2 to 3
+        data[i*2+1] = 2.0 + Math.random() * 1.0;   // y: 2 to 3
+    }
+    return data;
+}
+
+function sampleTarget(n) {
+    // Noisy Spiral
+    const data = new Float32Array(n * 2);
+    for(let i=0; i<n; i++) {
+        const rNorm = Math.sqrt(Math.random());
+        const theta = rNorm * 3 * Math.PI; 
+        const r = 0.2 + 2.5 * (theta / (3*Math.PI));
+        
+        const x = -r * Math.cos(theta + 1); 
+        const y = -r * Math.sin(theta + 1);
+        
+        data[i*2] = x + (Math.random()-0.5)*0.15;
+        data[i*2+1] = y + (Math.random()-0.5)*0.15;
+    }
+    return data;
+}
+
+// --- Model & Training ---
+
+function initModel() {
+    const depth = parseInt(inpDepth.value);
+    const width = parseInt(inpWidth.value);
+    const lr = Math.pow(10, parseFloat(inpLr.value));
+
+    // Input: x, y, t (3 dims). Output: vx, vy (2 dims)
+    let config = [3];
+    for(let i=0; i<depth; i++) config.push(width);
+    config.push(2);
+
+    model = new MLP(config);
+    optimizer = new Adam(model.params(), lr);
+    
+    stepCount = 0;
+    lossHistory = [];
+    currentLoss = 0;
+    
+    // Clear plots
+    lossCtx.clearRect(0,0, lossCanvas.width, lossCanvas.height);
+    updateStats(0, 0);
+    console.log("Model initialized", config);
+}
+
+function trainStep() {
+    // 1. Sample batch
+    const x0_raw = sampleSource(BATCH_SIZE);
+    const x1_raw = sampleTarget(BATCH_SIZE);
+    
+    const modelInput = new Tensor(BATCH_SIZE, 3);
+    const targetV = new Tensor(BATCH_SIZE, 2); 
+
+    for(let i=0; i<BATCH_SIZE; i++) {
+        const t = Math.random();
+        const x0x = x0_raw[i*2];
+        const x0y = x0_raw[i*2+1];
+        const x1x = x1_raw[i*2];
+        const x1y = x1_raw[i*2+1];
+
+        // Optimal Transport Path
+        const xtx = (1-t)*x0x + t*x1x;
+        const xty = (1-t)*x0y + t*x1y;
+
+        modelInput.data[i*3 + 0] = xtx;
+        modelInput.data[i*3 + 1] = xty;
+        modelInput.data[i*3 + 2] = t;
+
+        targetV.data[i*2 + 0] = x1x - x0x;
+        targetV.data[i*2 + 1] = x1y - x0y;
+    }
+
+    // 2. Forward
+    const predV = model.forward(modelInput);
+
+    // 3. Loss (MSE)
+    let lossSum = 0;
+    const gradV = new Tensor(BATCH_SIZE, 2); 
+    
+    for(let i=0; i<predV.length; i++) {
+        const diff = predV.data[i] - targetV.data[i];
+        lossSum += diff * diff;
+        gradV.grad[i] = 2 * diff / BATCH_SIZE;
+    }
+    currentLoss = lossSum / BATCH_SIZE;
+    
+    // Record history (max 100 points)
+    lossHistory.push(currentLoss);
+    if(lossHistory.length > 200) lossHistory.shift();
+
+    // 4. Backward
+    model.backward(gradV);
+
+    // 5. Update
+    optimizer.step();
+    
+    stepCount++;
+    if(stepCount % 5 === 0) updateStats(stepCount, currentLoss);
+}
+
+function updateStats(step, loss) {
+    elStep.innerHTML = `Step: ${step}<br>Loss: ${loss.toFixed(5)}`;
+    document.getElementById('val-lr').innerText = Math.pow(10, parseFloat(inpLr.value)).toExponential(1);
+    
+    drawLossChart();
+}
+
+function drawLossChart() {
+    const w = lossCanvas.width;
+    const h = lossCanvas.height;
+    lossCtx.clearRect(0, 0, w, h);
+
+    // Grid lines for 0, 1, 2, 3
+    lossCtx.strokeStyle = '#eee';
+    lossCtx.lineWidth = 1;
+    lossCtx.font = "10px sans-serif";
+    lossCtx.fillStyle = "#aaa";
+    
+    const maxY = 3.0;
+    
+    for(let i=0; i<=maxY; i+=1) {
+        const y = h - (i / maxY) * h;
+        lossCtx.beginPath();
+        lossCtx.moveTo(0, y);
+        lossCtx.lineTo(w, y);
+        lossCtx.stroke();
+        lossCtx.fillText(i, 2, y - 2);
+    }
+
+    if(lossHistory.length < 2) return;
+
+    // Draw Line
+    lossCtx.beginPath();
+    lossCtx.strokeStyle = '#e25555';
+    lossCtx.lineWidth = 2;
+
+    for(let i=0; i<lossHistory.length; i++) {
+        const val = Math.min(maxY, Math.max(0, lossHistory[i])); // Clamp 0-3
+        const x = (i / (lossHistory.length - 1)) * w;
+        const y = h - (val / maxY) * h;
+        if(i===0) lossCtx.moveTo(x, y);
+        else lossCtx.lineTo(x, y);
+    }
+    lossCtx.stroke();
+}
+
+// --- Inference ---
+
+function generateSamples() {
+    const totalSamples = parseInt(inpGenCount.value);
+    const traceCount = parseInt(inpTrajCount.value);
+
+    // Integration steps
+    const steps = 20; 
+    const dt = 1.0 / steps;
+    
+    // Start at x0
+    const x0 = sampleSource(totalSamples);
+    
+    // State array: [n, 2]
+    let currentX = new Float32Array(x0); 
+    
+    // Store trajectories only for the first 'traceCount' particles
+    let trajs = [];
+    for(let i=0; i<traceCount; i++) {
+        if(i < totalSamples) {
+            trajs.push([{x: currentX[i*2], y: currentX[i*2+1]}]);
+        }
+    }
+
+    for(let s=0; s<steps; s++) {
+        const t = s * dt;
+        
+        // Build input batch
+        const input = new Tensor(totalSamples, 3);
+        for(let i=0; i<totalSamples; i++) {
+            input.data[i*3 + 0] = currentX[i*2];
+            input.data[i*3 + 1] = currentX[i*2+1];
+            input.data[i*3 + 2] = t;
+        }
+        
+        const vel = model.forward(input);
+        
+        // Update positions
+        for(let i=0; i<totalSamples; i++) {
+            currentX[i*2] += vel.data[i*2] * dt;
+            currentX[i*2+1] += vel.data[i*2+1] * dt;
+            
+            // Only update trace if this particle index is tracked
+            if (i < traceCount) {
+                trajs[i].push({x: currentX[i*2], y: currentX[i*2+1]});
+            }
+        }
+    }
+
+    // Add to global generated list
+    for(let i=0; i<totalSamples; i++) {
+        generatedSamples.push({
+            x: currentX[i*2],
+            y: currentX[i*2+1],
+            traj: (i < traceCount) ? trajs[i] : null
+        });
+    }
+}
+
+// --- Rendering ---
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Grid
+    ctx.strokeStyle = '#f8f8f8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=0; i<=CANVAS_SIZE; i+=VIEW_SCALE) {
+        ctx.moveTo(i, 0); ctx.lineTo(i, CANVAS_SIZE);
+        ctx.moveTo(0, i); ctx.lineTo(CANVAS_SIZE, i);
+    }
+    ctx.stroke();
+    
+    // Axes
+    ctx.strokeStyle = '#eee';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(CENTER_X, 0); ctx.lineTo(CENTER_X, CANVAS_SIZE);
+    ctx.moveTo(0, CENTER_Y); ctx.lineTo(CANVAS_SIZE, CENTER_Y);
+    ctx.stroke();
+
+    // Draw True Target (Background) - Increased Opacity to 0.6
+    if (chkTrue.checked) {
+        const trueData = sampleTarget(400); 
+        ctx.fillStyle = '#ffcc00';
+        ctx.globalAlpha = 0.6; // Increased
+        for(let i=0; i<400; i++) {
+            const [sx, sy] = worldToScreen(trueData[i*2], trueData[i*2+1]);
+            ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 2*Math.PI); ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
+    // Draw Source (Reference) - Increased Opacity to 0.3
+    ctx.fillStyle = '#5555ff';
+    ctx.globalAlpha = 0.3; // Increased
+    const [bx1, by1] = worldToScreen(2, 3);
+    const [bx2, by2] = worldToScreen(3, 2);
+    ctx.fillRect(bx1, by1, bx2-bx1, by2-by1);
+    ctx.globalAlpha = 1.0;
+
+    // Draw Generated
+    for(let s of generatedSamples) {
+        // Trajectory
+        if (chkTraj.checked && s.traj) {
+            ctx.strokeStyle = '#ff8888';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.5;
+            ctx.beginPath();
+            for(let k=0; k<s.traj.length; k++) {
+                const [tx, ty] = worldToScreen(s.traj[k].x, s.traj[k].y);
+                if(k===0) ctx.moveTo(tx, ty);
+                else ctx.lineTo(tx, ty);
+            }
+            ctx.stroke();
+        }
+
+        // Point
+        const [sx, sy] = worldToScreen(s.x, s.y);
+        ctx.fillStyle = '#4caf50';
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 3, 0, 2*Math.PI);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1.0;
+}
+
+function loop() {
+    if (isTraining) {
+        // Multiple steps per frame for speed
+        for(let k=0; k<5; k++) trainStep();
+    }
+    
+    draw();
+    animationId = requestAnimationFrame(loop);
+}
+
+// --- UI Events ---
+
+inpDepth.addEventListener('input', (e) => {
+    document.getElementById('val-depth').innerText = e.target.value;
+});
+inpWidth.addEventListener('input', (e) => {
+    document.getElementById('val-width').innerText = e.target.value;
+});
+inpLr.addEventListener('input', (e) => {
+    document.getElementById('val-lr').innerText = Math.pow(10, parseFloat(e.target.value)).toExponential(1);
+    if(optimizer) optimizer.lr = Math.pow(10, parseFloat(e.target.value));
+});
+
+inpGenCount.addEventListener('input', (e) => {
+    document.getElementById('val-gen-count').innerText = e.target.value;
+});
+inpTrajCount.addEventListener('input', (e) => {
+    document.getElementById('val-traj-count').innerText = e.target.value;
+});
+
+
+btnReset.addEventListener('click', () => {
+    initModel();
+    generatedSamples = [];
+});
+
+btnTrain.addEventListener('click', () => {
+    isTraining = true;
+    btnTrain.disabled = true;
+    btnStop.disabled = false;
+    inpDepth.disabled = true; 
+    inpWidth.disabled = true;
+});
+
+btnStop.addEventListener('click', () => {
+    isTraining = false;
+    btnTrain.disabled = false;
+    btnStop.disabled = true;
+    inpDepth.disabled = false;
+    inpWidth.disabled = false;
+});
+
+btnGen.addEventListener('click', () => {
+    generateSamples();
+});
+
+btnClear.addEventListener('click', () => {
+    generatedSamples = [];
+});
+
+// --- Init ---
+
+initModel();
+loop();
+
+</script>
+</body>
+</html>
