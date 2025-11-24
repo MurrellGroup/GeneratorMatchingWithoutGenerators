@@ -214,34 +214,38 @@
 
 
 
-        <h2>4. A “resample–$z$” process</h2>
+        <h2>4. A “resample–$z$ process"</h2>
 
-        <p>Stepping away from our concrete example, back to the general case, we can define a hypothetical process using a simple algorithm:</p>
+        <p>Stepping away from the concrete straight-line example and back to the general case, recall that we can use the conditional process to draw samples from the marginal distribution $p(x_t \mid t)$ by first sampling $z$ from $p(z)$, sampling $x_0$ from the prior, and then stepping through $p(x_{t+\Delta t} \mid x_t, z, t)$ for each step until $t$ is reached. Now consider a modified version of this that repeats the following:
         <blockquote>
-            Given $x_t$ at time $t$:
             <ol>
-                <li>Sample a fresh latent $z$ from the posterior $p(z \mid x_t, t)$;</li>
-                <li>Evolve one tiny step towards that $z$:
-                $$ x_{t+\Delta t} = x_t + \frac{z - x_t}{1-t} \Delta t $$
-                </li>
+                <li>sample a fresh latent $z_{new}$ from the posterior $p(z \mid x_t, t)$;</li>
+                <li>sample $x_{t+\Delta t}$ from $p(x_{t+\Delta t} \mid x_t, z_{new}, t)$;</li>
             </ol>
         </blockquote>
 
+        <p>I.e. at every time step, forget the old $z$, redraw $z_{new}$ using $p(z\mid x_t,t)$, and take a small step from the same conditional process, but conditioned on $z_{new}$. We'll call this the "resample–$z$ process".</p>
 
+        <p><strong>Critically, the marginal distribution of samples from the resample–$z$ process is the same as the marginal distribution of samples from the original conditional process.</strong></p>
 
-     <!-- Why resampling preserves marginals -->
-     <div style="margin: 1.2rem 0;">
-        <h3>Why this preserves the marginal path \(p_t\)</h3>
-        <p>The resample–and–step chain exactly matches the one–time marginals of the original conditional construction. The reason is simple:</p>
+        <p>If this is not obvious, we can argue this by induction over time steps. If we assume the marginals $p(x_t \mid t)$ will match at $t$, then they will match at $t+\Delta t$ as well.</p>
         <ul>
-            <li><strong>Same joint at time \(t\):</strong> In the original model, sampling \(Z \sim p_{\text{data}}\) and then \(X_t \sim p_t(\cdot \mid Z)\) induces some joint law for \((Z, X_t)\). In the resampling chain, we first have \(X_t \sim p_t\), then draw \(Z \sim p(z \mid X_t, t)\). By Bayes’ rule these two procedures produce the <em>same</em> joint distribution for \((Z, X_t)\) at time \(t\).</li>
-            <li><strong>Same tiny step given \(Z\):</strong> From that shared \((Z, X_t)\), both constructions apply the <em>same</em> conditional transition kernel \(K^{(Z)}_{t+\Delta t \mid t}(\cdot \mid X_t)\) to obtain the next state.</li>
-            <li><strong>Therefore same next marginal:</strong> Because both start from the same \((Z, X_t)\) law and use the same kernel, the distribution of \(X_{t+\Delta t}\) is identical in both. Hence, if \(X_t \sim p_t\), then \(X_{t+\Delta t} \sim p_{t+\Delta t}\).</li>
+            
+            <li><strong>Procedure A (conditional process):</strong> 
+                Draw $x_t,z$ by first drawing $z$ from $p(z)$ and then drawing $x_t$ from $p(x_t \mid z, t)$, resulting in the distribution $p(x_t \mid z, t)p(z)$.
+            </li>
+            <li><strong>Procedure B (resample–\(z\)):</strong> 
+                Assume we have already drawn $x_t$ from $p(x_t \mid t)$. Then draw $z$ from $p(z \mid x_t, t)$, resulting in the distribution $p(z \mid x_t, t)p(x_t \mid t)$.
+            </li>
+            <li>But $p(z \mid x_t, t)p(x_t \mid t) = p(x_t \mid z, t)p(z) = p(x_t, z \mid t)$.</li>
+            <li>Thus both have the same joint distribution over $(x_t, z)$ at time $t$, and use the same conditional step rule to produce the next state at time $t+\Delta t$, so the joint distribution at time $t+\Delta t$ is the same for both procedures, and the marginal distributions $p(x_t \mid t) = \sum_z p(x_t, z \mid t)$ will be the same as well.</li>
+            <li>Given that the starting marginal distributions are both $p(x_0)$, by induction the marginals will match for all time steps.</li>
         </ul>
-        <p>Iterating over steps keeps the whole grid of marginals \(\{p_t\}\) intact, and letting \(\Delta t \to 0\) preserves the continuous path. A short Bayes–rule proof appears in the appendix of the note.</p>
     </div>
 
-    <p>This interactive figure shows...</p>
+    <p>Basically, exchanging one $z$ for another from $p(z \mid x_t, t)$ at any point in the path doesn't change the marginal distribution $p(x_t \mid t)$. It doesn't matter if we never resample $z$, resample it every tiny step, or sparsely resample it a few times over the course of the paths, you always wind up with the same marginal distribution $p(x_t \mid t)$. This is going to be crucial, so make sure you're happy with it.</p>
+
+    <p>The next interactive figure shows a sequence of paths, starting from a pure conditional process (no resampling) and then gradually increasing the resampling interval.</p>
     </section>
 
     <!-- Interactive Figure 2: Resample vs Average -->
@@ -251,9 +255,9 @@
         
         <div class="controls">
             <button id="btnAutoPlay" class="secondary">▶</button>
-            <button id="btnResetSim">Restart Simulation</button>
-            <button id="btnRandomizeSim" class="secondary">Randomize</button>
-            <button id="btnToggleMode" class="active">Mode: Averaged (Smooth)</button>
+            <!--<button id="btnResetSim">Restart Simulation</button>-->
+            <!--<button id="btnRandomizeSim" class="secondary">Randomize</button>-->
+            <button id="btnToggleMode" class="active">Mode: Conditional Process</button>
         </div>
         
         <div class="controls" id="resampleControls" style="background: #eef;">
@@ -274,11 +278,12 @@
 
     <h3>The infinite switching limit</h3>
 
-    <p>If the step size is larger, we "hold" a specific $Z$ for longer, leading to a more "jagged" path, but as $\Delta t \to 0$, 
-        the random fluctuations cancel out, and the path follows the expected velocity (the smooth average). 
-    </p>
+    <p>As seen above, the marginals $p(x_t \mid t)$ are the same for the conditional process (without $z$ resampling) and when repeatedly resampling $z$, even though the paths themselves look very different. Without resampling, the paths are straight lines from $x_0$ to $x_1$, and with slow resampling, the paths are more jagged, zig-zagging back and forth.</p>
+    
+    <p>But something interesting happens as we increase the resampling interval. When you have a large number of switches over a small interval, the law of large numbers kicks in and the path behaves as if it were a smooth average over all of the different resampled $z$, where the average is weighted by the posterior probability $p(z \mid x_t, t)$.</p>
 
-   
+    <p><strong>The key realization that powers GM (and flow matching, and diffusion models, etc) is that instead of trying to learn the posterior distribution $p(z \mid x_t, t)$, we can train a model to directly learn this average step.</strong></p>
+    
 
     <!-- LOGIC -->
     <script>
@@ -289,7 +294,7 @@
         // Prior Distribution Parameters (Centered on Canvas)
         const PRIOR_CENTER_1 = { x: 300, y: 225 }; // Center of canvas approx
         const PRIOR_SIGMA_1 = 80; 
-        const PRIOR_CENTER_2 = { x: 120, y: 175 }; // Center of canvas approx
+        const PRIOR_CENTER_2 = { x: 120, y: 200 }; // Center of canvas approx
         const PRIOR_SIGMA_2 = 40; 
 
         function distSq(p1, p2) {
@@ -602,6 +607,7 @@
         const simCaption = document.getElementById('simCaption');
         const dt = 1 / 1000; // Slow time step
         const AUTO_STAGES = [
+            { mode: 'resample', interval: 1000 },
             { mode: 'resample', interval: 100 },
             { mode: 'resample', interval: 10 },
             { mode: 'resample', interval: 1 },
@@ -616,10 +622,10 @@
         //Sample these randomly from two gaussians which are ventered on the previously hardcoded points.
         simTargets = [];
         for (let i = 0; i < 40; i++) {
-            x = (Math.random()+Math.random()+Math.random())/3 * 50 + 750;
-            y = (Math.random()+Math.random()+Math.random())/3 * 100 + 50;
+            x = (Math.random()+Math.random()+Math.random())/3 * 50 + 720;
+            y = (Math.random()+Math.random()+Math.random())/3 * 120 + 60;
             if (Math.random() < 0.3) {
-                y += 125;
+                y += 150;
             }
             simTargets.push({ x, y});
         }
@@ -704,10 +710,19 @@
             startSimFromSeeds();
         }
 
-        function setSimMode(mode) {
+        function setSimMode(mode, interval) {
             if (mode === 'resample') {
                 sim.mode = 'resample';
-                btnToggleMode.textContent = "Mode: Resampled (Stochastic)";
+                // Must display interval in the button text
+                if (interval === 1000) {
+                    btnToggleMode.textContent = "Mode: Conditional Proces";
+                } else if (interval === 100) {
+                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.1)";
+                } else if (interval === 10) {
+                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.01)";
+                } else if (interval === 1) {
+                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.001)";
+                }
                 btnToggleMode.classList.remove('active');
                 // Keep controls visible; enable slider
                 resampleControls.style.display = 'flex';
@@ -739,12 +754,12 @@
             const stage = AUTO_STAGES[idx];
             if (!stage) return;
             if (stage.mode === 'resample') {
-                setSimMode('resample');
+                setSimMode('resample', stage.interval);
                 sim.resampleInterval = stage.interval;
                 stepSizeSlider.value = String(stage.interval);
                 stepDisplay.textContent = parseFloat(stage.interval * dt).toFixed(3);
             } else {
-                setSimMode('average');
+                setSimMode('average', stage.interval);
             }
             startSimFromSeeds();
         }
@@ -944,8 +959,8 @@
         }
 
         // Sim Controls
-        btnResetSim.addEventListener('click', startSimFromSeeds);
-        btnRandomizeSim.addEventListener('click', randomizeAndStartSim);
+        //btnResetSim.addEventListener('click', startSimFromSeeds);
+        //btnRandomizeSim.addEventListener('click', randomizeAndStartSim);
         
         btnToggleMode.addEventListener('click', () => {
             if(sim.mode === 'average') setSimMode('resample'); else setSimMode('average');
@@ -997,10 +1012,10 @@
 
     <section>
         <h2>5. Posterior–averaged tiny step (and the red arrow)</h2>
-        <p>In the “resample–and–step” view, we repeatedly (i) look at the current $x$, (ii) resample a fresh $Z \sim p(z \mid x,t)$, and (iii) take one tiny step using the conditional rule for that $Z$. As the step size $\Delta t \to 0$, the randomness from resampling washes out and what remains is the <em>average tiny step</em> at $(t,x)$.</p>
-        <p>For simple flow matching, the conditional velocity is $u_t(x\mid z) = \dfrac{z - x}{1-t}$. The <em>posterior–averaged velocity</em> is</p>
-        <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \E\!\left[\,u_t(x\mid Z)\,\middle|\, X_t = x \right] \;=\; \E\!\left[\,\frac{Z - x}{1-t}\,\middle|\, x,t \right]. $$</p>
-        <p>The widget below shows this averaged direction as a <span style="color:#d63384; font-weight:bold;">red arrow</span>. The <span style="color:#0056b3; font-weight:bold;">blue lines</span> indicate the posterior weights over candidate $z$’s; the arrow is the weighted average of their directions toward $x$.</p>
+        <p>Think of “what happens next” at $(t,x)$ if we momentarily pretend $z$ is fixed, and then average that tiny effect using the posterior $p(z\mid x,t)$. That averaged tiny effect is what remains in the $\Delta t \to 0$ limit.</p>
+        <p>For the straight-line example used in the figures, the conditional velocity is $u_t(x\mid z) = \dfrac{z - x}{1-t}$. With a discrete set of candidates $z_1,\dots,z_N$ and posterior weights $w_k(x,t)=p(z_k\mid x,t)$, the <em>posterior–averaged velocity</em> is</p>
+        <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\frac{z_k - x}{1-t}. $$</p>
+        <p>(For a continuous family of $z$, replace the sum by an integral weighted by $p(z\mid x,t)$.) The widget below shows this averaged direction as a <span style="color:#d63384; font-weight:bold;">red arrow</span>. The <span style="color:#0056b3; font-weight:bold;">blue lines</span> indicate the posterior weights over candidate $z$’s; the arrow points to the <em>posterior–averaged</em> endpoint at $t=1$ (that is, the averaged $x_1$).</p>
     </section>
 
     <!-- Interactive Figure 3: Posterior with Arrow -->
@@ -1019,7 +1034,7 @@
             <strong>Instructions:</strong> Move the <span style="color:green">Green Dot</span> ($x$). 
             The opacity of the <span style="color:blue">Blue Lines</span> represents the posterior probability $p(z|x,t)$.
             <br>
-            The <span style="color:red">Red Arrow</span> points to the posterior-averaged $X_1$ (hits the $t=1$ line).
+            The <span style="color:red">Red Arrow</span> points to the posterior-averaged \(x_1\) (hits the $t=1$ line).
         </div>
     </div>
 
@@ -1141,54 +1156,73 @@
     
     <section>
         <h2>6. Tiny–step averaging: four concrete cases</h2>
-        <p>“Average the generator” means “average the <em>infinitesimal</em> step rule.” Below are four common cases and exactly what gets averaged.</p>
+        <p>“Average the tiny step rule” is all we need—no generator machinery. Below are four common cases and exactly what gets averaged.</p>
 
         <h3>Case I: pure drift (deterministic flow)</h3>
-        <p>Assume the dynamics are purely deterministic with a velocity field $u_t(\cdot \mid z)$. Over a tiny interval, a conditional step looks like</p>
+        <p>Assume the dynamics are deterministic with a velocity field $u_t(\cdot \mid z)$. Over a tiny interval, a conditional step looks like</p>
         <p style="text-align:center;">$$ x_{\text{new}} \approx x + u_t(x\mid z)\,\Delta t. $$</p>
-        <p>Resampling $Z \sim p(z\mid x,t)$ every tiny step produces, in the limit, the same motion as a single deterministic flow with the <em>posterior–averaged velocity</em></p>
-        <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \E\!\left[u_t(x\mid Z)\mid X_t = x\right]. $$</p>
-        <p>For a discrete set of candidates $z_1,\dots,z_N$ with posterior weights $w_k(x,t)=p(z_k\mid x,t)$, this expectation becomes</p>
+        <p>Resampling every tiny step is, in the limit, the same as using the <em>posterior–averaged velocity</em>. For discrete $z_1,\dots,z_N$ with weights $w_k(x,t)=p(z_k\mid x,t)$,</p>
         <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,u_t(x\mid z_k). $$</p>
-        <p>In simple flow matching, $u_t(x\mid z_k)=\dfrac{z_k - x}{1-t}$, so</p>
+        <p>In the straight-line example, $u_t(x\mid z_k)=\dfrac{z_k - x}{1-t}$, so</p>
         <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \frac{1}{1-t}\sum_{k=1}^N w_k(x,t)\,(z_k - x). $$</p>
-        <p><strong>1D sanity check.</strong> If $u_t(x\mid z)$ is either $v_1$ or $v_2$ with posterior weights $\alpha$ and $1-\alpha$, then many tiny resampling steps behave like a single drift with speed $\alpha v_1 + (1-\alpha)v_2$. The step–to–step randomness averages out as $\Delta t \to 0$.</p>
+        <p><strong>1D sanity check.</strong> If $u_t(x\mid z)$ is either $v_1$ or $v_2$ with posterior weights $\alpha$ and $1-\alpha$, then many tiny resampling steps behave like a single drift with speed $\alpha v_1 + (1-\alpha)v_2$.</p>
 
         <h3>Case II: diffusion (Gaussian noise)</h3>
-        <p>Now there’s no drift, only Gaussian noise with scale $\sigma_t(x\mid z)$:</p>
+        <p>No drift, only Gaussian noise with scale $\sigma_t(x\mid z)$:</p>
         <p style="text-align:center;">$$ x_{\text{new}} \approx x + \sigma_t(x\mid z)\,\sqrt{\Delta t}\,\xi, \quad \xi \sim \mathcal{N}(0,I). $$</p>
-        <p>What matters at $O(\Delta t)$ is the <em>variance per unit time</em> $\Sigma_t(x\mid z) = \sigma_t(x\mid z)\sigma_t(x\mid z)^\top$. After resampling, variances add and we get an effective diffusion with</p>
-        <p style="text-align:center;">$$ \bar{\Sigma}_t(x) \;=\; \E\!\left[\Sigma_t(x\mid Z)\mid X_t = x\right]. $$</p>
-        <p>With discrete $z_k$ and weights $w_k(x,t)$:</p>
+        <p>What matters to first order is the <em>variance per unit time</em> $\Sigma_t(x\mid z) = \sigma_t(x\mid z)\sigma_t(x\mid z)^\top$. The posterior–weighted average covariance is</p>
         <p style="text-align:center;">$$ \bar{\Sigma}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\Sigma_t(x\mid z_k). $$</p>
-        <p>In 1D:</p>
+        <p>In 1D we average <em>variances</em>:</p>
         <p style="text-align:center;">$$ \bar{\sigma}_t^2(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\sigma_t^2(x\mid z_k). $$</p>
-        <p><strong>Key intuition.</strong> We average <em>variances</em>, not standard deviations. In 1D that’s $\bar{\sigma}_t^2(x) = \E[\sigma_t^2(x\mid Z)\mid x,t]$.</p>
+        <p><strong>Key intuition:</strong> average <em>variances</em>, not standard deviations.</p>
 
         <h3>Case III: continuous–time Markov chains (finite states)</h3>
-        <p>For a finite–state CTMC, the primitives are transition <em>rates</em> $q_t(j\mid i, z)$. Over $\Delta t$, the chance to jump $i \to j$ is $q_t(j\mid i, z)\,\Delta t$ (to first order). Resampling then averaging yields an effective chain with rates</p>
-        <p style="text-align:center;">$$ \bar{q}_t(j\mid i) \;=\; \E\!\left[q_t(j\mid i, Z)\mid X_t = i\right]. $$</p>
-        <p>Equivalently, if $z_1,\dots,z_N$ and $w_k(i,t)=p(z_k\mid X_t=i,t)$:</p>
+        <p>For a finite–state CTMC, the basic objects are transition <em>rates</em> $q_t(j\mid i, z)$. Over $\Delta t$, the chance to jump $i \to j$ is $q_t(j\mid i, z)\,\Delta t$ (to first order). Averaging gives the effective rates, with posterior weights \(w_k(i,t)=p(z_k\mid x_t=i,t)\):</p>
         <p style="text-align:center;">$$ \bar{q}_t(j\mid i) \;=\; \sum_{k=1}^N w_k(i,t)\,q_t(j\mid i, z_k). $$</p>
-        <p><strong>Two–state example.</strong> If the only jump is $A \to B$ with latent–dependent rate $\lambda(Z)$, then the effective leave–$A$ rate is $\bar{\lambda}_t = \E[\lambda(Z)\mid X_t=A]$.</p>
+        <p><strong>Two–state example.</strong> If the only jump is $A \to B$ with latent–dependent rate $\lambda(z)$, then the effective leave–$A$ rate is \(\sum_k w_k(A,t)\,\lambda(z_k)\).</p>
 
         <h3>Case IV: jump processes in continuous space</h3>
-        <p>Each conditional model specifies an <em>intensity</em> $\lambda_t(x\mid z)$ and a <em>destination density</em> $r_t(y\mid x,z)$. Over $\Delta t$, a jump occurs with probability $\lambda_t(x\mid z)\Delta t$; if it does, we land at $Y \sim r_t(\cdot\mid x,z)$.</p>
-        <p>Resampling $Z$ yields an effective jump process with an averaged intensity</p>
-        <p style="text-align:center;">$$ \bar{\lambda}_t(x) \;=\; \E\!\left[\lambda_t(x\mid Z)\mid X_t = x\right], $$</p>
-        <p>and, <em>conditional on a jump</em>, an intensity–weighted destination</p>
-        <p style="text-align:center;">$$ \bar{r}_t(y\mid x) \;=\; \frac{\E\!\left[\lambda_t(x\mid Z)\, r_t(y\mid x, Z)\mid X_t = x\right]}{\bar{\lambda}_t(x)}. $$</p>
-        <p>With discrete $z_k$ and weights $w_k(x,t)=p(z_k\mid x,t)$, these become explicit sums:</p>
+        <p>Each conditional model specifies an <em>intensity</em> $\lambda_t(x\mid z)$ and a <em>destination density</em> $r_t(y\mid x,z)$. Over $\Delta t$, a jump occurs with probability $\lambda_t(x\mid z)\Delta t$, and if it does, we land at $Y \sim r_t(\cdot\mid x,z)$.</p>
+        <p>Averaging yields an effective jump process with intensity and (conditional on a jump) an intensity–weighted destination:</p>
         <p style="text-align:center;">$$ \bar{\lambda}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\lambda_t(x\mid z_k), \qquad
         \bar{r}_t(y\mid x) \;=\; \frac{\sum_{k=1}^N w_k(x,t)\,\lambda_t(x\mid z_k)\, r_t(y\mid x, z_k)}{\sum_{k=1}^N w_k(x,t)\,\lambda_t(x\mid z_k)}. $$</p>
-        <p><strong>Toy picture: “nudge” vs “teleport.”</strong> Some $z$’s suggest frequent small local nudges; others suggest rare teleports near $z$. The marginal process mixes both: average how often jumps occur (intensity), and, when a jump happens, land according to the intensity–weighted mixture of destinations.</p>
-        <p><strong>Gaussian destination example.</strong> Suppose the conditional destination is Gaussian,
+        <p><strong>Toy picture: “nudge” vs “teleport.”</strong> Some $z$’s suggest frequent small nudges; others suggest rare teleports near $z$. The marginal process mixes both.</p>
+        <p><strong>Gaussian destination example.</strong> If the conditional destination is Gaussian,
         $$ r_t(y\mid x, z_k) \;=\; \mathcal{N}\!\big(y;\, m_t(x,z_k),\, S_t(x,z_k)\big). $$
-        Then the effective landing distribution is a <em>mixture of Gaussians</em>
+        then the effective landing distribution is a <em>mixture of Gaussians</em>
         $$ \bar{r}_t(y\mid x) \;=\; \sum_{k=1}^N \pi_k(x,t)\; \mathcal{N}\!\big(y;\, m_t(x,z_k),\, S_t(x,z_k)\big), $$
         with mixture weights
         $$ \pi_k(x,t) \;=\; \frac{w_k(x,t)\,\lambda_t(x\mid z_k)}{\sum_{\ell=1}^N w_\ell(x,t)\,\lambda_t(x\mid z_\ell)}. $$
         Here $w_k(x,t)=p(z_k\mid x,t)$ are the posterior weights.</p>
+    </section>
+
+    <section>
+        <h2>7. Returning to GM</h2>
+        <p>Putting the story together in GM’s simple, data–friendly language:</p>
+        <ul>
+            <li><strong>Choose a prior and a conditional process:</strong> Pick an easy prior for $x_0$ and specify how to step $x_{t+\Delta t}$ from $(x_t,z,t)$ so that when $t\to 1$ the path lands near the endpoint controlled by $z$.</li>
+            <li><strong>Marginals are mixtures:</strong> The distribution of $x_t$ is the mixture over $z$: \(p(x_t\mid t)=\int p(x_t\mid z,t)\,p(z)\,dz.\)</li>
+            <li><strong>Resample–and–step preserves marginals:</strong> If we literally resample $z$ using \(p(z\mid x_t,t)\) each tiny step and then apply the conditional rule, we recover the same marginals \(p(x_t\mid t)\).</li>
+            <li><strong>Tiny–step limit = posterior average:</strong> As steps get tiny, resampling noise disappears and what remains is the <em>posterior–averaged tiny step</em> at \((t,x)\).</li>
+            <li><strong>What GM learns:</strong> GM trains a model to output that averaged tiny step directly from \((t,x)\). At sampling time we never need to resample $z$.</li>
+        </ul>
+    </section>
+
+    <section>
+        <h2>8. Summary</h2>
+        <ul>
+            <li><strong>Marginals by construction:</strong> The conditional paths \(p(x_t\mid z,t)\) mix to give \(p(x_t\mid t)\). Resample–and–step keeps these marginals intact.</li>
+            <li><strong>Posterior–averaged tiny step:</strong> As \(\Delta t\to 0\), repeatedly resampling \(z\) is equivalent to using the expected tiny step at \((t,x)\).</li>
+            <li><strong>What averages in practice:</strong>
+                <ul>
+                    <li><strong>Drift:</strong> average the velocity \(u_t(x\mid z)\).</li>
+                    <li><strong>Diffusion:</strong> average the covariance (variance), not the standard deviation.</li>
+                    <li><strong>CTMC:</strong> average the transition rates \(q_t(j\mid i,z)\).</li>
+                    <li><strong>Jumps:</strong> average the intensity \(\lambda_t(x\mid z)\) and, conditional on a jump, use the intensity–weighted mixture of destinations.</li>
+                </ul>
+            </li>
+            <li><strong>GM in one line:</strong> Learn the posterior–averaged tiny step rule from \((t,x)\); sample by integrating that rule from the prior to \(t=1\).</li>
+        </ul>
     </section>
 </body>
 </html>
