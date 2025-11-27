@@ -294,7 +294,7 @@
     
     <!-- Interactive Figure 3: Posterior with Arrow -->
     <div class="interactive-figure">
-        <h4 style="margin-top:0;">Viz 3: The Time-Dependent Posterior (with Averaged Velocity Arrow)</h4>
+        <h4 style="margin-top:0;">Time-Dependent Posterior (with Averaged Velocity)</h4>
         <canvas id="posteriorCanvas3" width="600" height="450"></canvas>
         
         <div class="controls">
@@ -363,8 +363,19 @@
         <h2>7. Different state spaces and step types</h2>
         <p>The beauty of the GM framework is that "average the tiny step" works for <em>any</em> kind of stochastic process—not just deterministic flows. Here are four common cases, showing exactly what gets averaged in each.</p>
 
+        <p>Using the $z$-resampling process as a guide, we can reason about what kind of object the above average will be by considering a number of steps (each switching to a new $z$) and seeing what the cumulative effect <strong>in distribution</strong> is. I.e. if we were to replace $n$ steps with a single step (but where the single step is aware of the sequence of $z$ values that was stepped through), what would the distribution of the state be at the end of the single step?</p>
+
         <h3>Case I: Deterministic flow (pure drift)</h3>
-        <img src="assets/ex1_flow.svg" alt="Drift-only flow matching case"/>
+        <div class="interactive-figure">
+            <h4 style="margin-top:0;">Cumulative effect: Drift-only.</h4>
+            <img src="assets/ex1_flow.svg" alt="Drift-only flow matching case"/>
+            <div class="caption">
+                <strong>Top (blue):</strong> Four steps of the $z$-resampling process for the pure-drift case.
+                <br>
+                <strong>Bottom (red):</strong> The cumulative effect of the four steps, which is just the sum of the vectors from the top.
+            </div>
+        </div>
+        
         <p>This is the flow matching case we've been using in the examples. The dynamics are deterministic with a velocity field $u_t(\cdot \mid z)$:</p>
         <p style="text-align:center;">$$ x_{t+\Delta t} = x_t + u_t(x_t\mid z)\,\Delta t. $$</p>
         <p>We average the velocities directly:
@@ -373,6 +384,16 @@
         <p>For straight-line paths where $u_t(x\mid z)=\frac{z - x}{1-t}$, the averaged velocity points toward a weighted combination of all the training examples.</p>
 
         <h3>Case II: Diffusion (drift + Gaussian noise)</h3>
+        <div class="interactive-figure">
+            <h4 style="margin-top:0;">Cumulative effect: Drift and diffusion.</h4>
+            <img src="assets/ex2_driftdiffusion.svg" alt="Drift+Diffusion case"/>
+            <div class="caption">
+                <strong>Top (blue):</strong> Four steps with $z$-resampling for a process with drift and diffusion. Each step has a deterministic component, and draws a sample from a Gaussian distribution.
+                <br>
+                <strong>Bottom (red):</strong> The cumulative effect of the four steps, which is the sum of the drift vectors, and a sample from a Gaussian with the sum of the variances of the four Gaussians above.
+            </div>
+        </div>
+        
         <p>Many processes include stochasticity. Consider a step with both drift and Gaussian noise:
         $$ x_{t+\Delta t} = x_t + \mu_t(x_t\mid z)\,\Delta t + \sigma_t(x_t\mid z)\,\sqrt{\Delta t}\,\xi, \quad \xi \sim \mathcal{N}(0,I). $$
         </p>
@@ -382,6 +403,15 @@
         <p><strong>Important:</strong> We average <em>variances</em>, not standard deviations. This is because when you rapidly switch between noise levels, the <a href="https://en.wikipedia.org/wiki/Bienaym%C3%A9%27s_identity">total variance accumulates additively</a>.</p>
 
         <h3>Case III: Continuous-time Markov chains (discrete states)</h3>
+        <div class="interactive-figure">
+            <h4 style="margin-top:0;">Cumulative effect: Discrete CTMC.</h4>
+            <img src="assets/ex3_CTMC.svg" alt="Discrete CTMC case"/>
+            <div class="caption">
+                <strong>Top (blue):</strong> Four steps with $z$-resampling for a discrete process. The depicted displacements are the probability of switching from the current state to another state in each step (in this example, the state does not change).
+                <br>
+                <strong>Bottom (red):</strong> The cumulative effect of the four steps, which is the sum of the switching probabilities.
+            </div>
+        </div>
         <p>For discrete state spaces (like text tokens), we use continuous-time Markov chains (CTMCs). The fundamental object is the transition <em>rate</em> $q_t(j\mid i, z)$: the probability per unit time of jumping from state $i$ to state $j$.</p>
         <p>Over a small $\Delta t$:
         $$ \Prob(x_{t+\Delta t} = j \mid x_t = i) \approx q_t(j\mid i, z)\,\Delta t \quad \text{for } j \neq i. $$
@@ -392,6 +422,16 @@
         <p>This is precisely what discrete diffusion models for language (like MDLM, SEDD, etc.) learn to predict.</p>
 
         <h3>Case IV: Jump processes in continuous space</h3>
+        <div class="interactive-figure">
+            <h4 style="margin-top:0;">Cumulative effect: Jump process.</h4>
+            <img src="assets/ex4_jumps.svg" alt="Jump process case"/>
+            <div class="caption">
+                <strong>Top (blue):</strong> Four steps of the $z$-resampling process for a jump process. In this example, if a jump occurs in a single step, the target distribution is a nearby Gaussian (depicted). In this example, no jumps occur and the state is unchanged.
+                <br>
+                <strong>Bottom (red):</strong> The cumulative effect of the four steps, which is a <em>mixture</em> of the four Gaussian distributions.
+            </div>
+        </div>
+        
         <p>Some processes involve discontinuous jumps in continuous space. Each conditional model specifies a jump <em>intensity</em> $\lambda_t(x\mid z)$ (how often jumps occur) and a <em>destination distribution</em> $r_t(y\mid x,z)$ (where you land if you jump).</p>
         <p>Averaging gives:
         $$ \bar{\lambda}_t(x) = \sum_k p(z_k\mid x,t)\,\lambda_t(x\mid z_k), $$
@@ -452,6 +492,7 @@
         <h3>To do:</h3>
         <ol>
             <li>Loss scaling</li>
+            <li>Manifolds</li>
             <li>Rewriting as $x$-prediction.</li>
             <li>Doing more with $z$.</li>
             <li>Worked example (cat?) in javascript maybe?</li>
