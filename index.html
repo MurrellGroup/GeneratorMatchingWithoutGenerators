@@ -330,7 +330,7 @@
         <p>For each such sample $(x_t, z)$, we know the conditional step $u_t(x_t \mid z)$ exactly—it's just a function of $x_t$, $z$, and $t$.</p>
 
         <h3>What loss gives us the posterior average?</h3>
-        <p>In our flow matching working example, if we minimize the mean squared error (MSE) between our model's output $f_\theta(t, x_t)$ and the conditional step $u_t(x_t \mid z)$ over samples from $p(x_t, z \mid t)$, we get exactly the posterior-averaged step we want.</p>
+        <p>In our "drift-only" flow matching working example, if we minimize the mean squared error (MSE) between our model's output $f_\theta(t, x_t)$ and the conditional step $u_t(x_t \mid z)$ over samples from $p(x_t, z \mid t)$, we get exactly the posterior-averaged step we want.</p>
 
         <p>To see why, recall that minimizing MSE gives you the <em>conditional expectation</em>. If you have pairs $(x, y)$ drawn from some joint distribution and you minimize $\E[(f(x) - y)^2]$, the optimal $f$ is $f^*(x) = \E[y \mid x]$.</p>
 
@@ -361,9 +361,10 @@
 
     <section>
         <h2>7. Different state spaces and step types</h2>
-        <p>The beauty of the GM framework is that "average the tiny step" works for <em>any</em> kind of stochastic process—not just deterministic flows. Here are four common cases, showing exactly what gets averaged in each.</p>
-
-        <p>Using the $z$-resampling process as a guide, we can reason about what kind of object the above average will be by considering a number of steps (each switching to a new $z$) and seeing what the cumulative effect <strong>in distribution</strong> is. I.e. if we were to replace $n$ steps with a single step (but where the single step is aware of the sequence of $z$ values that was stepped through), what would the distribution of the state be at the end of the single step?</p>
+        <p>The beauty of the GM framework is that "average the tiny step" works for <em>any</em> kind of stochastic process—not just deterministic flows. 
+        Using the $z$-resampling process as a guide, we can reason about what kind of object the above average will be by considering a number of steps (each switching to a new $z$) and seeing what the cumulative effect <strong>in distribution</strong> is. I.e. if we were to replace $n$ steps with a single step (but where the single step is aware of the sequence of $z$ values that was stepped through), what would the distribution of the state be at the end of the single step?</p>
+        
+        <p>You can represent any useful kind of "step" as some combination of drift, diffusion, and jump. Here are four common cases, showing exactly what gets averaged in each.</p>
 
         <h3>Case I: Deterministic flow (pure drift)</h3>
         <div class="interactive-figure">
@@ -443,7 +444,7 @@
         <h3>Closure</h3>
         <p>In the first three cases (drift only, drift + diffusion, and discrete CTMC), the cumulative effect of multiple steps is the same kind of object as each of the component steps. In the jump example, however, even though the individual jumps (each conditioned on a different $z$) are Gaussian, the cumulative effect is a <em>mixture</em> of the individual jump destinations.</p>
 
-        <p>Given that the whole point of GM is to train a model to predict the posterior-averaged step, this makes the jump case particularly challenging as it requires the model to learn to predict mixtures of the jump distribution, which can be difficult to impossible to appropriately parameterize if they need to be arbitrarily flexible. In practice, jump distribution that result in trivial mixtures can be chosen, such as grids where the distribution within each grid cell is uniform, and the model can learn to output a discrete distribution over the grid cells. This enforces a closure between a conditional step for a single $z$ and the posterior-averaged step marginalizing over many $z$ values.</p>
+        <p>Given that the whole point of GM is to train a model to predict the posterior-averaged step, this makes the jump case particularly challenging as it requires the model to learn to predict mixtures of the jump distribution, which can be difficult to impossible to appropriately parameterize if they need to be arbitrarily flexible. In practice, jump distributions that result in trivial mixtures can be chosen, such as grids where the distribution within each grid cell is uniform, and the model can learn to output a discrete distribution over the grid cells. This enforces a closure between a conditional step for a single $z$ and the posterior-averaged step marginalizing over many $z$ values.</p>
     </section>
 
     <section>
@@ -496,6 +497,7 @@
     <section>
         <h3>To do:</h3>
         <ol>
+            <li>Multimodal, and multidimensional states.</li>
             <li>Perfect learning will recover the training data only. Only succeeds where it fails.</li>
             <li>Loss scaling</li>
             <li>Manifolds</li>
