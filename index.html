@@ -439,6 +439,11 @@
         $$ \bar{r}_t(y\mid x) = \frac{\sum_k p(z_k\mid x,t)\,\lambda_t(x\mid z_k)\, r_t(y\mid x, z_k)}{\bar{\lambda}_t(x)}. $$
         </p>
         <p>The mixture weights depend on both the posterior $p(z_k\mid x,t)$ and the jump intensity—processes that jump more frequently contribute more to where you land.</p>
+
+        <h3>Closure</h3>
+        <p>In the first three cases (drift only, drift + diffusion, and discrete CTMC), the cumulative effect of multiple steps is the same kind of object as each of the component steps. In the jump example, however, even though the individual jumps (each conditioned on a different $z$) are Gaussian, the cumulative effect is a <em>mixture</em> of the individual jump destinations.</p>
+
+        <p>Given that the whole point of GM is to train a model to predict the posterior-averaged step, this makes the jump case particularly challenging as it requires the model to learn to predict mixtures of the jump distribution, which can be difficult to impossible to appropriately parameterize if they need to be arbitrarily flexible. In practice, jump distribution that result in trivial mixtures can be chosen, such as grids where the distribution within each grid cell is uniform, and the model can learn to output a discrete distribution over the grid cells. This enforces a closure between a conditional step for a single $z$ and the posterior-averaged step marginalizing over many $z$ values.</p>
     </section>
 
     <section>
@@ -491,6 +496,7 @@
     <section>
         <h3>To do:</h3>
         <ol>
+            <li>Perfect learning will recover the training data only. Only succeeds where it fails.</li>
             <li>Loss scaling</li>
             <li>Manifolds</li>
             <li>Rewriting as $x$-prediction.</li>
