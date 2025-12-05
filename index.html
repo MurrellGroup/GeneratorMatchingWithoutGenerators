@@ -149,7 +149,7 @@
         <p> This is what Generator Matching (GM) lets you do. Like <a href="https://mlg.eng.cam.ac.uk/blog/2024/01/20/flow-matching.html">flow matching</a> (which GM generalizes), this is done by starting from an easy-to-sample-from "prior" distribution, and learning how to transform this into the target distribution. It does this through many small steps in what we call "time" (which we denote with $t$), starting at $t=0$ (the simple prior) and ending at $t=1$ (the target distribution).
         </p>
         <p>
-            [Insert image and protein examples.]
+            <img width="815" height="357" alt="Image" src="https://github.com/user-attachments/assets/1d156b8b-68aa-47dd-a39d-5f0e4e2b4675" />
         </p>
         <p>
             We denote the state of the model at time $t$ as $x_t$. For example, if you are modeling images, then $x_1$ would be an image from the training dataset, and $x_0$ would be an image with random pixel values.
@@ -160,9 +160,9 @@
             <li>conditioned on $z$, sample $x_{t+\Delta t}$ from $p(x_{t+\Delta t} \mid x_t, z, t)$ for some small time step $\Delta t$;</li>
         </ul>
 
-        <p>What is $z$? Often $z$ is just a single training data sample $x_1$, but $z$ is an extremely flexible "latent variable", and can include other information that controls the path of the process. More about that later.</p>
+        <p>What is $z$? Often $z$ just holds a single training data sample (which we'll call $x_1^z$), but $z$ is an extremely flexible "latent variable", and can include other information that controls the path of the process. More about that later.</p>
 
-        <p>You can think of $p(x_{t+\Delta t} \mid x_t, z, t)$ as a function that takes the current state $x_t$, the latent $z$, and the time $t$, and returns the next state $x_{t+\Delta t}$, which may or may not involve some randomness. The only constraint is that when you repeatedly step through time by calling this function over and over, when $t$ reaches $1$, the state $x_1$ will be the sample from the training distribution that is associated with the latent $z$.</p>
+        <p>You can think of $p(x_{t+\Delta t} \mid x_t, z, t)$ as a function that takes the current state $x_t$, the latent $z$, and the time $t$, and returns the next state $x_{t+\Delta t}$, which may or may not involve some randomness. The only constraint is that when you repeatedly step through time by calling this function over and over, when $t$ reaches $1$, the state $x_1^z$ will be the sample from the training distribution that is associated with the latent $z$.</p>
 
         <p>With a simple prior distribution $p(x_0)$ that governs where the process starts, $p(x_{t+\Delta t} \mid x_t, z, t)$ specifies the distribution of each subsequent step, and pins down what we call the "conditional path" (because it is conditioned on $z$ to terminate at a given $x_1$).</p>
 
@@ -182,10 +182,10 @@
     <section>
         <h2>3. A concrete example</h2>
 
-        <p>As a working concrete example, we'll consider the case of standard <a href="https://arxiv.org/abs/2210.02747"> flow matching</a>, where the state space is continuous, $p(x_0)$ is a Gaussian distribution, and the conditional path is simply a straight line that points towards $x_1$. In this case, $p(x_{t+\Delta t} \mid x_t, z, t)$ is just a point mass at $x_t + \frac{(x_1 - x_t)\Delta t}{1-t}$.</p>
+        <p>As a working concrete example, we'll consider the case of standard <a href="https://arxiv.org/abs/2210.02747"> flow matching</a>, where the state space is continuous, $p(x_0)$ is a Gaussian distribution, and the conditional path is simply a straight line that points towards $x_1^z$, the training data point associated with $z$. In this case, $p(x_{t+\Delta t} \mid x_t, z, t)$ is just a point mass at $x_t + \frac{(x_1^z - x_t)\Delta t}{1-t}$.</p>
         
-        <p>With this example, $p(z \mid x_t, t)$ is simple to compute. There is no noise in the conditional process, so the only source of uncertainty is in the prior $p(x_0)$. Given $x_t$ and $t$, we can thus compute $p(z \mid x_t, t)$ for each $z$ proportional to the probability of $x_0$ under the Gaussian prior $p(x_0)$, and we can get $x_0$ by extrapolating backwards from $x_1$ through $x_t$:
-        $$ x_0 = -t \cdot \frac{x_1 - x_t}{1-t} $$
+        <p>With this example, $p(z \mid x_t, t)$ is simple to compute. There is no noise in the conditional process, so the only source of uncertainty is in the prior $p(x_0)$. Given $x_t$ and $t$, we can thus compute $p(z \mid x_t, t)$ for each $z$ proportional to the probability of $x_0$ under the Gaussian prior $p(x_0)$, and we can get $x_0$ by extrapolating backwards from $x_1^z$ through $x_t$:
+        $$ x_0 = -t \cdot \frac{x_1^z - x_t}{1-t} $$
         </p>
 
         <p>The following interactive figure shows an example with a one-dimensional state, where you control $t$ and $x_t$, and $p(z \mid x_t, t)$ is shown as the opacity of the blue lines. Move around a little and understand how the training data points at $t=1$ get reweighted as $t$ and $x_t$ change.</p>
@@ -287,8 +287,8 @@
 
     <p><strong>The key realization</strong> that powers GM (and flow matching, and diffusion models, etc) is that instead of trying to learn the posterior distribution $p(z \mid x_t, t)$, <em>we can train a model to directly learn this average step.</em></p>
     
-    <p>For the straight-line example used in the figures, the conditional velocity is $u_t(x\mid z) = \dfrac{z - x}{1-t}$. With a discrete set of candidates $z_1,\dots,z_N$ and posterior weights $w_k(x,t)=p(z_k\mid x,t)$, the <em>posterior–averaged velocity</em> is</p>
-    <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \sum_{k=1}^N w_k(x,t)\,\frac{z_k - x}{1-t}. $$</p>
+    <p>For the straight-line example used in the figures, the conditional velocity is $u_t(x\mid z) = \dfrac{x_1^z - x}{1-t}$. With a discrete set of candidates $z_1,\dots,z_N$ and posterior weights $p(z_k\mid x,t)$, the <em>posterior–averaged velocity</em> is</p>
+    <p style="text-align:center;">$$ \bar{u}_t(x) \;=\; \sum_{k=1}^N p(z_k\mid x,t)\,\frac{x_1^{z_k} - x}{1-t}. $$</p>
     
     <p>The widget below is just like Interactive Figure 1, but also shows this averaged direction (extended all the way to $t=1$) as a <span style="color:#d63384; font-weight:bold;">red arrow</span>. The <span style="color:#0056b3; font-weight:bold;">blue lines</span> indicate the posterior weights over candidate $z$ values.</p>
     
@@ -361,10 +361,10 @@
 
     <section>
         <h2>7. Different state spaces and step types</h2>
-        <p>The beauty of the GM framework is that "average the tiny step" works for <em>any</em> kind of stochastic process—not just deterministic flows. 
-        Using the $z$-resampling process as a guide, we can reason about what kind of object the above average will be by considering a number of steps (each switching to a new $z$) and seeing what the cumulative effect <strong>in distribution</strong> is. I.e. if we were to replace $n$ steps with a single step (but where the single step is aware of the sequence of $z$ values that was stepped through), what would the distribution of the state be at the end of the single step?</p>
+        <p>The beauty of the GM framework is that this "smooth average" works for <em>any</em> kind of stochastic process—not just deterministic drif-only flows. 
+        Using the $z$-resampling process as a guide, we can reason about what kind of object the average will be. Consider a number of steps (each switching to a new $z$) and ask: what is their cumulative effect <strong>in distribution</strong>? i.e. if we were to replace $n$ steps with a single step (but where the single step is aware of the sequence of $z$ values that was stepped through), what would the distribution of the state be at the end of the single step?</p>
         
-        <p>You can represent any useful kind of "step" as some combination of drift, diffusion, and jump. Here are four common cases, showing exactly what gets averaged in each.</p>
+        <p>You can represent any useful kind of "step" as some combination of drift (continuous deterministic changes), diffusion (continuous stochastic changes), and jumps (discontinuous changes). Here are four common examples, showing exactly what gets averaged in each.</p>
 
         <h3>Case I: Deterministic flow (pure drift)</h3>
         <div class="interactive-figure">
@@ -380,9 +380,9 @@
         <p>This is the flow matching case we've been using in the examples. The dynamics are deterministic with a velocity field $u_t(\cdot \mid z)$:</p>
         <p style="text-align:center;">$$ x_{t+\Delta t} = x_t + u_t(x_t\mid z)\,\Delta t. $$</p>
         <p>We average the velocities directly:
-        $$ \bar{u}_t(x) = \sum_k p(z_k\mid x,t)\,u_t(x\mid z_k). $$
+        $$ \bar{u}_t(x) = \sum_k p(x_1^{z_k}\mid x,t)\,u_t(x\mid z_k). $$
         </p>
-        <p>For straight-line paths where $u_t(x\mid z)=\frac{z - x}{1-t}$, the averaged velocity points toward a weighted combination of all the training examples.</p>
+        <p>For straight-line paths where $u_t(x\mid z)=\frac{x_1^z - x}{1-t}$, the averaged velocity points toward a weighted combination of all the training examples.</p>
 
         <h3>Case II: Diffusion (drift + Gaussian noise)</h3>
         <div class="interactive-figure">
@@ -403,31 +403,30 @@
         </p>
         <p><strong>Important:</strong> We average <em>variances</em>, not standard deviations. This is because when you rapidly switch between noise levels, the <a href="https://en.wikipedia.org/wiki/Bienaym%C3%A9%27s_identity">total variance accumulates additively</a>.</p>
 
-        <h3>Case III: Continuous-time Markov chains (discrete states)</h3>
+        <h3>Case III: Discrete states</h3>
         <div class="interactive-figure">
-            <h4 style="margin-top:0;">Cumulative effect: Discrete CTMC.</h4>
-            <img src="assets/ex3_CTMC.svg" alt="Discrete CTMC case"/>
+            <h4 style="margin-top:0;">Cumulative effect: Discrete states.</h4>
+            <img src="assets/ex3_CTMC.svg" alt="Discrete state case"/>
             <div class="caption">
                 <strong>Top (blue):</strong> Four steps with $z$-resampling for a discrete process. The depicted displacements are the probability of switching from the current state to another state in each step (in this example, the state does not change).
                 <br>
                 <strong>Bottom (red):</strong> The cumulative effect of the four steps, which is the sum of the switching probabilities.
             </div>
         </div>
-        <p>For discrete state spaces (like text tokens), we use continuous-time Markov chains (CTMCs). The fundamental object is the transition <em>rate</em> $q_t(j\mid i, z)$: the probability per unit time of jumping from state $i$ to state $j$.</p>
+        <p>For discrete state spaces (like text tokens), the fundamental object is the transition <em>rate</em> $q_t(j\mid i, z)$: the probability per unit time of jumping from state $i$ to state $j$.</p>
         <p>Over a small $\Delta t$:
         $$ \Prob(x_{t+\Delta t} = j \mid x_t = i) \approx q_t(j\mid i, z)\,\Delta t \quad \text{for } j \neq i. $$
         </p>
         <p>We average the rates:
         $$ \bar{q}_t(j\mid i) = \sum_k p(z_k\mid x_t=i,t)\,q_t(j\mid i, z_k). $$
         </p>
-        <p>This is precisely what discrete diffusion models for language (like MDLM, SEDD, etc.) learn to predict.</p>
 
         <h3>Case IV: Jump processes in continuous space</h3>
         <div class="interactive-figure">
             <h4 style="margin-top:0;">Cumulative effect: Jump process.</h4>
             <img src="assets/ex4_jumps.svg" alt="Jump process case"/>
             <div class="caption">
-                <strong>Top (blue):</strong> Four steps of the $z$-resampling process for a jump process. In this example, if a jump occurs in a single step, the target distribution is a nearby Gaussian (depicted). In this example, no jumps occur and the state is unchanged.
+                <strong>Top (blue):</strong> Four steps of a $z$-resampling process with jumps. In this example, if a jump occurs in a single step, the target distribution is a nearby Gaussian (depicted). In this example, no jumps occur and the state is unchanged.
                 <br>
                 <strong>Bottom (red):</strong> The cumulative effect of the four steps, which is a <em>mixture</em> of the four Gaussian distributions.
             </div>
@@ -445,6 +444,14 @@
         <p>In the first three cases (drift only, drift + diffusion, and discrete CTMC), the cumulative effect of multiple steps is the same kind of object as each of the component steps. In the jump example, however, even though the individual jumps (each conditioned on a different $z$) are Gaussian, the cumulative effect is a <em>mixture</em> of the individual jump destinations.</p>
 
         <p>Given that the whole point of GM is to train a model to predict the posterior-averaged step, this makes the jump case particularly challenging as it requires the model to learn to predict mixtures of the jump distribution, which can be difficult to impossible to appropriately parameterize if they need to be arbitrarily flexible. In practice, jump distributions that result in trivial mixtures can be chosen, such as grids where the distribution within each grid cell is uniform, and the model can learn to output a discrete distribution over the grid cells. This enforces a closure between a conditional step for a single $z$ and the posterior-averaged step marginalizing over many $z$ values.</p>
+
+        <p>In practice, almost all generative models that fall into the GM framework have been:</p>
+        <ul>
+            <li>Continuous states, with drift-only (eg. deterministic flow matching);</li>
+            <li>Continuous states, with drift + diffusion, but where <em>only the drift component is learnable</em>, and the diffusion component is fixed according to some schedule, and not data dependent (eg. diffusion models or SDE flow matching);</li>
+            <li>Discrete state & process (i.e. a jump process, but where the jumps are to a fixed set of states);</li>
+            <li>Some multimodal combination of the above.</li>
+        </ul>
     </section>
 
     <section>
@@ -493,6 +500,37 @@
         </ul>
     </section>
 
+    <section>
+        <h3>Linear parameterizations of conditional steps</h3>
+
+        <p>We're using a neural network to parameterize the step. The network will predict some number(s), and our step will be a function of those. Going back to our running pure-drift flow matching example, we could have:
+        <ul>
+            <li>the network aim to predict the posterior mean velocity vector $\hat{u}_t(x_t)$ directly, in which case our step is $x_{t+\Delta t} = x_t + \hat{u}_t(x_t)\,\Delta t$;</li>
+            <li>the network predict the posterior average $\hat{x}_1$, in which case we can take the step as $x_{t+\Delta t} = x_t + \frac{\hat{x}_1-x_t}{1-t}\,\Delta t$;</li>
+        </ul>
+        <p>The first version is clearly in line with the description of GM above, and a Bregman divergence loss will be minimized at the posterior mean. But why does the second parameterization, which we call $x$-prediction (or sometimes $x_1$-prediction) work? Because (weighted) arithmetic averages are equivariant under scale and shift transformations. So since $\hat{u}_t = \frac{\hat{x}_1-x_t}{1-t}$, using a Bregman divergence to learn the posterior average $\hat{x}_1$ will also learn the posterior mean velocity vector $\hat{u}_t$.</p>
+                        
+        <p>It is important to understand where this will fail. One example is on manifolds, which we haven't discussed yet, but all of the above tricks apply to manifolds as well. If you have a conditional process that keeps the state on the manifold but that terminates at a training sample point, and you use samples from this conditional process to learn the posterior average step, then your model will sample from the data distribution. The analogous example to simple flow matching is where the conditional process follows the geodesic between $x_0$ and $x_1$. This works when you minimize the squared error of the model's prediction of the velocity vector $\hat{u}_t(x_t)$ (which is tangent to the manifold), but in general this fails when you minimize the squared error of the model's prediction of the terminal point $\hat{x}_1$ (even if you have a manifold-respecting average). Why? Because with the non-linear manifold geometry, $x_1$ and $\hat{u}_t(x_t)$ are no longer related by an affine transformation!</p>
+
+        <p>But in some cases we <em>really</em> want to use $x$-prediction (eg. for protein models, which update positions and orientations through the layer stack). Fortunately, the issue isn't in what the model outputs, but in what the loss is taken against. On manifolds, the version of $x$-prediction that works is if you have the model predict $x_1$ on the manifold, then take the logarithmic map to pull $x_1$ up into the tangent space at $x_t$, and then minimize the squared error against the true $x_1$ in the tangent space. The downside of this option is that, unlike directly predicting the velocity, you now need a GPU-friendly differentiable logarithmic map, since this is sandwiched between the model's prediction and the loss, and so the gradients must flow through it.</p>
+
+        <p>The discrete case is also instructive here. Take a simple unconditional CTMC, non-absorbing, with uniform rates between all characters. If condition this process to terminate at $x_1$, the conditional outgoing probability velocities for $x_t$ at $t$ can be obtained via the Doob $h$-transform, and if you train a model, with a Bregman divergence, against these probability velocities, you get a working discrete flow matching model. However the Doob $h$-transform is not generally affine, and so e.g. predicting $x_1$ with a cross-entropy loss will fail.</p>
+
+        <p>Diffusion models circumvent this by using a process that starts in a masked state, and unmasks directly to the $x_1$ state. [tbc]</p>
+
+        <p>Discrete flow matching conditional processes circumvent this by restricting the class of processes to those where the velocity is affine in $x$-prediction. [tbc]</p>
+
+    </section>
+
+    <section>
+        <h3>Efficient sampling from the conditional process, for efficient training.</h3>
+
+        <p>As described, when the conditional process is constructed via a sequence of tiny steps, it is clear how to sample from $p(x_{t+\Delta t} \mid x_t, z, t)$ for each step, and this is all that is needed to understand the principles of GM. But this is often not efficient. Given that this happens within the training loop, the sampling from the conditional process should be efficient enough to never keep the GPU waiting.</p>
+
+        <p>However there are large classes of conditional processes where $p(x_t \mid z, t)$ can be obtained in closed form, and is easy to sample from. For example the drift-only process we've been using as a working example is trivial, because it just charts a straight line between $x_0$ and $x_1$. Brownian Bridges are the drift/diffusion analog of this, where you wind up with a straight line with some variance. In general, where possible it is usually a good idea to choose a conditional process where the conditional path can be sampled from directly without stepping through all the intermediates.</p>
+    </section>
+
+
 
     <section>
         <h3>To do:</h3>
@@ -501,9 +539,9 @@
             <li>Perfect learning will recover the training data only. Only succeeds where it fails.</li>
             <li>Loss scaling</li>
             <li>Manifolds</li>
-            <li>Rewriting as $x$-prediction.</li>
+            <li>Aux losses</li>
             <li>Doing more with $z$.</li>
-            <li>Worked example (cat?) in javascript maybe?</li>
+            <li>"zGM without generators"</li>
         </ol>
     </section>
 
