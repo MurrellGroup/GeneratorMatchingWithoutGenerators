@@ -737,7 +737,7 @@
             </div>
         </div>
 
-        <!-- SLIDE 13: Training -->
+        <!-- SLIDE 13: Training
         <div class="slide" data-slide="13">
             <div class="slide-content">
                 <h2>6. Training</h2>
@@ -748,7 +748,7 @@
                     <li>Sample $z$ from $p(z)$ (pick a random training example)</li>
                     <li>Sample $x_0$ from prior $p(x_0)$</li>
                     <li>Run conditional process forward to get $x_t$</li>
-                    <li>Compute conditional step $u_t(x_t \mid z)$—it's just a function!</li>
+                    <li>Compute conditional step $u_t(x_t \mid z)$.</li>
                 </ol>
 
                 <h3>Why MSE Gives the Posterior Average</h3>
@@ -762,15 +762,19 @@
                 </div>
             </div>
         </div>
+         -->
 
         <!-- SLIDE 14: Training Algorithm -->
         <div class="slide" data-slide="14">
             <div class="slide-content">
+                <h2>6. Training</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 1rem;">We need a model $f_\theta(t, x)$ that outputs $\bar{u}_t(x_t)$. This is just <strong>regression!</strong></p>
+
                 <h2>The Training Algorithm</h2>
 
                 <ol>
                     <li>Sample a batch of training examples $\{z_i\}$</li>
-                    <li>For each $z_i$: sample $t_i \sim \text{Uniform}[0,1)$, generate $x_{t_i}$ from conditional process</li>
+                    <li>For each $z_i$: sample $t_i \sim \text{Uniform}(0,1)$, generate $x_{t_i}$ from conditional process</li>
                     <li>Compute conditional step $u_{t_i}(x_{t_i} \mid z_i)$</li>
                     <li>Update $\theta$ to minimize $\sum_i D(u_{t_i}(x_{t_i} \mid z_i), f_\theta(t_i, x_{t_i}))$</li>
                 </ol>
@@ -780,6 +784,10 @@
                     <li><strong>MSE:</strong> Standard choice for continuous states</li>
                     <li><strong>Bregman divergences:</strong> Any Bregman divergence learns the right thing!</li>
                 </ul>
+
+                <div class="key-point">
+                    <strong>We never compute $p(z \mid x_t, t)$ explicitly!</strong> The averaging happens automatically through regression.
+                </div>
 
                 <div class="callout">
                     <strong>Try it yourself:</strong> <a href="https://murrellgroup.github.io/GeneratorMatchingWithoutGenerators/spiral_flow.html">Train a flow matching model in the browser</a>
@@ -1440,14 +1448,14 @@
             const one_minus_t = 1 - t_safe;
             v1.targetsY.forEach((zy, i) => {
                 const w = weights[i];
-                if (w <= 0.001) return;
+                if (w <= 0.005) return;
                 const y0 = (v1.stateY - t_safe * zy) / one_minus_t;
                 ctx1.beginPath();
                 ctx1.moveTo(cvs1.width - 6, zy);
                 ctx1.lineTo(tPosX, v1.stateY);
                 ctx1.lineTo(6, y0);
-                ctx1.strokeStyle = `rgba(79, 195, 247, ${w})`;
-                ctx1.lineWidth = w * 4 + 1;
+                ctx1.strokeStyle = `rgba(256, 256, 256, ${w + 0.025})`;
+                ctx1.lineWidth = w * 5 + 1;
                 ctx1.stroke();
             });
 
@@ -1963,7 +1971,8 @@
                 ctx3.moveTo(cvs3.width - 6, zy);
                 ctx3.lineTo(tPosX, v3.stateY);
                 ctx3.lineTo(6, y0);
-                ctx3.strokeStyle = `rgba(79, 195, 247, ${w})`;
+                //ctx3.strokeStyle = `rgba(79, 195, 247, ${w})`;
+                ctx3.strokeStyle = `rgba(256, 256, 256, ${w + 0.025})`;
                 ctx3.lineWidth = w * 4 + 1;
                 ctx3.stroke();
             });
