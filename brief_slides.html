@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Matching without Generators</title>
+    
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                macros: {
+                    R: "\\mathbb{R}",
+                    E: "\\mathbb{E}",
+                    Var: "\\mathrm{Var}",
+                    Prob: "\\mathbb{P}"
+                }
+            }
+        };
+    </script>
+
+    <style>
+        :root {
+            --text-color: #e8e8e8;
+            --bg-color: #1a1a2e;
+            --slide-bg: #16213e;
+            --primary-color: #4fc3f7;
+            --accent-color: #f06292;
+            --secondary-accent: #81c784;
+            --code-bg: #0f0f23;
+            --border-color: #2a2a4a;
+            --nav-bg: rgba(22, 33, 62, 0.95);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: "Crimson Pro", "Georgia", serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            color: var(--text-color);
+        }
+
+        /* Slideshow Container */
+        .slideshow-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .slide {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 60px 80px 100px;
+            overflow-y: auto;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Slide Content */
+        .slide-content {
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
+            flex: 1;
+        }
+
+        h1 {
+            font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+
+        h2 {
+            font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 2.2rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        h3 {
+            font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: var(--secondary-accent);
+            margin: 1.5rem 0 1rem;
+        }
+
+        h4 {
+            font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 1.2rem;
+            color: var(--accent-color);
+            margin: 0 0 1rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            font-size: 1.3rem;
+            font-style: italic;
+            margin-bottom: 1rem;
+        }
+
+        .author {
+            text-align: center;
+            color: var(--accent-color);
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* Abstract/Callout Box */
+        .callout {
+            background: linear-gradient(135deg, rgba(79, 195, 247, 0.1) 0%, rgba(240, 98, 146, 0.1) 100%);
+            padding: 1.5rem 2rem;
+            border-radius: 12px;
+            border-left: 4px solid var(--primary-color);
+            margin: 1.5rem 0;
+            font-size: 1.1rem;
+            line-height: 1.7;
+        }
+
+        .callout strong {
+            color: var(--primary-color);
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 1rem 0 1rem 1.5rem;
+            font-size: 1.25rem;
+            line-height: 1.8;
+        }
+
+        li {
+            margin-bottom: 0.8rem;
+        }
+
+        li::marker {
+            color: var(--accent-color);
+        }
+
+        /* Key points */
+        .key-point {
+            background: rgba(129, 199, 132, 0.15);
+            border-left: 4px solid var(--secondary-accent);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 1.15rem;
+        }
+
+        .key-point strong {
+            color: var(--secondary-accent);
+        }
+
+        /* Equations */
+        .equation {
+            text-align: center;
+            margin: 1.5rem 0;
+            font-size: 1.3rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        /* Blockquote for process steps */
+        blockquote {
+            background: rgba(79, 195, 247, 0.08);
+            border-left: 4px solid var(--accent-color);
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        blockquote ol {
+            margin: 0.5rem 0 0.5rem 1.5rem;
+        }
+
+        /* Links */
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+            border-bottom: 1px dotted var(--primary-color);
+            transition: all 0.2s;
+        }
+
+        a:hover {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+        }
+
+        /* Interactive Figure Container */
+        .interactive-figure {
+            background: var(--slide-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            padding: 1.5rem;
+            text-align: center;
+            margin: 1rem auto;
+            max-width: 850px;
+        }
+
+        canvas {
+            display: block;
+            margin: 10px auto;
+            background: #0a0a1a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: crosshair;
+            max-width: 100%;
+        }
+
+        .controls {
+            margin-top: 15px;
+            font-family: "Space Grotesk", -apple-system, sans-serif;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #29b6f6 100%);
+            color: #1a1a2e;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            font-family: "Space Grotesk", -apple-system, sans-serif;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79, 195, 247, 0.4);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, #546e7a 0%, #455a64 100%);
+            color: white;
+        }
+
+        button.active {
+            background: linear-gradient(135deg, var(--accent-color) 0%, #ec407a 100%);
+        }
+
+        input[type=range] {
+            vertical-align: middle;
+            accent-color: var(--primary-color);
+        }
+
+        input[type=number] {
+            width: 55px;
+            padding: 6px;
+            background: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-color);
+            font-family: inherit;
+        }
+
+        label {
+            color: #bbb;
+        }
+
+        .caption {
+            font-size: 0.9rem;
+            color: #999;
+            margin-top: 1rem;
+            font-family: "Space Grotesk", -apple-system, sans-serif;
+            line-height: 1.5;
+        }
+
+        /* Navigation */
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--nav-bg);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border-color);
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            padding: 10px 24px;
+            font-size: 1rem;
+            min-width: 120px;
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .slide-counter {
+            font-family: "Space Grotesk", monospace;
+            font-size: 1rem;
+            color: #888;
+        }
+
+        .slide-counter .current {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            transition: width 0.3s ease;
+            z-index: 1001;
+        }
+
+        /* Image styling */
+        .slide img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 1rem auto;
+            display: block;
+        }
+
+        /* Two column layout */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin: 1rem 0;
+        }
+
+        /* SVG figures */
+        .svg-figure {
+            background: var(--slide-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .svg-figure img {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .svg-figure .caption {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        /* Title slide special - only style when active */
+        .slide.title-slide.active {
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .title-slide h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Compact list for slides */
+        .compact-list {
+            font-size: 1.15rem;
+        }
+
+        .compact-list li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Keyboard hint */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 80px;
+            right: 30px;
+            font-size: 0.8rem;
+            color: #666;
+            font-family: "Space Grotesk", monospace;
+        }
+
+        kbd {
+            background: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: inherit;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="progress-bar" id="progressBar"></div>
+
+    <div class="slideshow-container">
+
+        <!-- SLIDE 3: The Setup -->
+        <div class="slide" data-slide="3">
+            <div class="slide-content">
+                <h2>Generator Matching: The Setup</h2>
+                <ul>
+                    <li><strong>Goal:</strong> Train a model to generate samples from a target distribution (images, text, proteins, etc.)</li>
+                    <li><strong>Approach:</strong> Transform an easy-to-sample "prior" into the target through many small steps</li>
+                </ul>
+                <div style="text-align: center; margin: 1.5rem 0;">
+                    <img width="750" alt="Flow from prior to target" src="https://github.com/user-attachments/assets/1d156b8b-68aa-47dd-a39d-5f0e4e2b4675" />
+                </div>
+                <ul>
+                    <li><strong>Time $t$:</strong> Goes from $t=0$ (prior) to $t=1$ (target)</li>
+                    <li><strong>State $x_t$:</strong> The model state at time $t$
+                        <ul>
+                            <li>$x_0$ = sample from prior (e.g., random noise)</li>
+                            <li>$x_1$ = sample from target (e.g., real image)</li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: Conditional Process -->
+        <div class="slide" data-slide="4">
+            <div class="slide-content">
+                <h2>The Conditional Process</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 1.5rem;">GM requires that you can:</p>
+                <ol>
+                    <li>Sample a latent $z$ from some distribution $p(z)$, which controls where the process ends at $t=1$</li>
+                    <li>Conditioned on $z$, sample $x_{t+\Delta t}$ from $p(x_{t+\Delta t} \mid x_t, z, t)$ for small $\Delta t$</li>
+                </ol>
+
+                <p style="font-size: 1.2rem;">This means we can sample from $p(x_t \mid z, t)$ by first sampling $x_0$ from the prior, and then stepping through $p(x_{t+\Delta t} \mid x_t, z, t)$ for each step until $t$ is reached.</p>
+
+                <h3>What is $z$?</h3>
+                <ul>
+                    <li>Often just holds a single training sample $x_1^z$</li>
+                    <li>But $z$ is flexible—can include other information controlling the path</li>
+                </ul>
+
+                <div class="key-point">
+                    <strong>Key constraint:</strong> When stepping through time repeatedly, at $t=1$ the state reaches $x_1^z$—the training sample associated with $z$.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: Marginals and Posterior -->
+        <div class="slide" data-slide="5">
+            <div class="slide-content">
+                <h2>Marginals and Posterior</h2>
+                
+                <h3>The Marginal Distribution $p(x_t \mid t)$</h3>
+                <ul>
+                    <li>Sample $z$ from $p(z)$, then sample $p(x_t \mid z, t)$</li>
+                    <li>With $n$ training samples of equal probability, one per $z$:</li>
+                </ul>
+                <div class="equation">
+                    $$p(x_t \mid t) = \frac{1}{n} \sum_{i=1}^n p(x_t \mid z_i, t)$$
+                </div>
+                <ul>
+                    <li><strong>At $t=1$:</strong> This marginal equals the training data distribution</li>
+                </ul>
+
+                <h3>The Posterior $p(z \mid x_t, t)$</h3>
+                <ul>
+                    <li>By Bayes: $p(z \mid x_t, t) \propto p(x_t \mid z, t) p(z)$</li>
+                    <li>We won't compute it explicitly, but need to understand what it means</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: Interactive Posterior Visualization -->
+        <div class="slide" data-slide="7">
+            <div class="slide-content">
+                <h2>Interactive: The Posterior $p(z \mid x_t, t)$</h2>
+                <div class="interactive-figure">
+                    <h4>Move your cursor to control $t$ (horizontal) and $x_t$ (vertical)</h4>
+                    <canvas id="posteriorCanvas" width="600" height="450"></canvas>
+                    
+                    <div class="controls">
+                        <div style="border-left:1px solid var(--border-color); padding-left:10px; margin-left:10px;">
+                            <label>N: <input type="number" id="inputN" value="40" min="1" max="100"></label>
+                            <button id="btnResampleData" class="secondary">Resample Points</button>
+                        </div>
+                    </div>
+
+                    <div class="caption">
+                        <span style="color:#81c784; font-weight:bold;">Green Dot</span> = current $(t, x_t)$ &nbsp;|&nbsp;
+                        <span style="color:#4fc3f7; font-weight:bold;">Blue Lines</span> opacity = posterior $p(z|x_t,t)$
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: Resample-z Process Intro -->
+        <div class="slide" data-slide="8">
+            <div class="slide-content">
+                <h2>The Resample-$z$ Process</h2>
+                
+                <p style="font-size: 1.2rem; margin-bottom: 1rem;">The conditional process samples $x_t$ but first sampling $z$ from $p(z)$, then sampling $x_t$ from $p(x_t \mid z, t)$ by stepping from $x_0$.
+                    Consider a modified process that every now and again:</p>
+                
+                <blockquote>
+                    <ol>
+                        <li>Samples fresh $z_{\text{new}}$ from the posterior $p(z \mid x_t, t)$</li>
+                        <li>Takes steps with $p(x_{t+\Delta t} \mid x_t, z_{\text{new}}, t)$</li>
+                    </ol>
+                </blockquote>
+
+                <p style="font-size: 1.2rem; margin: 1.5rem 0;">At points along the sample trajectory you forget old $z$, redraw from posterior, and continue stepping.</p>
+
+                <div class="key-point">
+                    <strong>Critically:</strong> The marginal distribution $p(x_t \mid t)$ is the same for both the original conditional process and the resample-$z$ process.
+                </div>
+
+                <p style="font-size: 1.2rem; margin: 1.5rem 0;">Why?
+                    Under the conditional process, sampling $z$ then $x_t$ has the joint distribution:
+                    $$p(x_t, z \mid t) = p(x_t \mid z, t) p(z) $$
+                    If you discard $z$ you're in the marginal distribution $p(x_t \mid t)$, and if you resample $z$ from the posterior you get:
+                    $$p(x_t, z \mid t) = p(z \mid x_t, t) p(x_t \mid t) $$
+                    After resampling $z$ the joint distribution is unchanged, and the step is the same, so the distribution at $p(x_{t+\Delta t}, z \mid t+\Delta t)$ will agree as well.
+                    So since they both start from $p(x_0)$ at $t=0$, by induction the marginals will match for all time steps.
+                </p>
+            </div>
+        </div>
+
+        <!-- SLIDE 10: Interactive Resampling -->
+        <div class="slide" data-slide="10">
+            <div class="slide-content">
+                <h2>The Resample-$z$ Process</h2>
+                <div class="interactive-figure">
+                    <h4>Watch paths change as resampling interval decreases</h4>
+                    <canvas id="simCanvas" width="800" height="400"></canvas>
+                    
+                    <div class="controls">
+                        <button id="btnAutoPlay" class="secondary">▶</button>
+                        <button id="btnToggleMode" class="active">Mode: Conditional Process</button>
+                    </div>
+                    
+                    <div class="controls" id="resampleControls" style="background: rgba(79, 195, 247, 0.1);">
+                        <label>Resample Interval: 
+                            <input type="range" id="stepSizeSlider" min="1" max="100" value="20">
+                        </label>
+                        <span id="stepDisplay">0.020</span>
+                    </div>
+
+                    <div class="caption" id="simCaption">
+                        <span style="color:var(--accent-color); font-weight:bold;">Red Path</span> → <span style="color:var(--primary-color); font-weight:bold">Blue Target</span> &nbsp;|&nbsp;
+                        Click to set starting point
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 11: Infinite Switching Limit -->
+        <div class="slide" data-slide="11">
+            <div class="slide-content">
+                <h2>Generator Matching: the limit of the Resample-$z$ Process</h2>
+                
+                <ul>
+                    <li><strong>Without resampling:</strong> Straight lines from $x_0$ to $x_1$</li>
+                    <li><strong>With slow resampling:</strong> Jagged, zig-zagging paths</li>
+                    <li><strong>With fast resampling:</strong> Law of large numbers kicks in</li>
+                </ul>
+
+                <div class="key-point">
+                    As switching rate → ∞, the path converges to a <em>smooth posterior-weighted average</em> over all $z$ values.
+                </div>
+
+                <h3>The Posterior-Averaged Velocity</h3>
+                <div class="equation">
+                    $$ \bar{u}_t(x) = \sum_{k=1}^N p(z_k\mid x,t)\,u_t(x \mid z_k) $$
+                </div>
+
+                <h3>Generator Matching:</h3>
+
+                <ul>
+                    <li>The marginal matching and switching-rate-limit arguments hold for other kinds of conditional process.</li>
+                    <li>Use a Bregman divergence to train a model $f_\theta(t, x)$ that directly learns this average step.</li>
+                    <li>Generate new samples by integrating forward from $x_0$ using the learned model.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: Interactive Averaged Velocity -->
+        <div class="slide" data-slide="12">
+            <div class="slide-content">
+                <h2>Posterior-Averaged Velocity</h2>
+                <div class="interactive-figure">
+                    <h4>The red arrow shows $\bar{u}_t(x)$ pointing to the weighted average $x_1$</h4>
+                    <canvas id="posteriorCanvas3" width="600" height="450"></canvas>
+                    
+                    <div class="controls">
+                        <div style="border-left:1px solid var(--border-color); padding-left:10px; margin-left:10px;">
+                            <label>N: <input type="number" id="inputN3" value="40" min="1" max="100"></label>
+                            <button id="btnResampleData3" class="secondary">Resample Points</button>
+                        </div>
+                    </div>
+                    
+                    <div class="caption">
+                        <span style="color:#81c784; font-weight:bold;">Green Dot</span> = $(t, x_t)$ &nbsp;|&nbsp;
+                        <span style="color:#4fc3f7; font-weight:bold;">Blue Lines</span> = posterior weights &nbsp;|&nbsp;
+                        <span style="color:var(--accent-color); font-weight:bold;">Red Arrow</span> = averaged velocity to $t=1$
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 15: Different State Spaces -->
+        <div class="slide" data-slide="15">
+            <div class="slide-content">
+                <h2>Different State Spaces</h2>
+                <div class="two-col">
+                    <div>
+                        <h3>Case I: Pure Drift (Flow)</h3>
+                        <img width="400" src="assets/ex1_flow.svg" alt="Drift-only flow matching case"/>
+                        <ul class="compact-list">
+                            <li>Average the velocities directly</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Case II: Drift + Diffusion</h3>
+                        <img width="400" src="assets/ex2_driftdiffusion.svg" alt="Drift+Diffusion case"/>
+                        <ul class="compact-list">
+                            <li>Average drift and <em>variances</em></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="two-col" style="margin-top: 0rem;">
+                    <div>
+                        <h3>Case III: Discrete States</h3>
+                        <img width="400" src="assets/ex3_CTMC.svg" alt="Discrete state case"/>
+                        <ul class="compact-list">
+                            <li>Average the rates</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Case IV: Jump Processes</h3>
+                        <img width="400" src="assets/ex4_jumps.svg" alt="Jump process case"/>
+                        <ul class="compact-list">
+                            <li>Average event intensities but <em>mixture</em> of destinations.</li>
+                            <li>i.e. a Gaussian jump in the conditional process is a mixture of Gaussians (one per $z$) in the posterior averaged step.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="nav-bar">
+        <button class="nav-btn secondary" id="prevBtn" onclick="changeSlide(-1)">← Previous</button>
+        <div class="slide-counter">
+            <span class="current" id="currentSlide">1</span> / <span id="totalSlides">25</span>
+        </div>
+        <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">Next →</button>
+    </nav>
+
+    <div class="keyboard-hint">
+        <kbd>←</kbd> <kbd>→</kbd> or <kbd>Space</kbd> to navigate
+    </div>
+
+    <!-- LOGIC -->
+    <script>
+        // =========================================
+        // SLIDESHOW NAVIGATION
+        // =========================================
+        let currentSlideIndex = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+        const progressBar = document.getElementById('progressBar');
+        const currentSlideEl = document.getElementById('currentSlide');
+        const totalSlidesEl = document.getElementById('totalSlides');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        totalSlidesEl.textContent = totalSlides;
+
+        function showSlide(n) {
+            slides.forEach(s => s.classList.remove('active'));
+            currentSlideIndex = ((n % totalSlides) + totalSlides) % totalSlides;
+            slides[currentSlideIndex].classList.add('active');
+            
+            // Update UI
+            currentSlideEl.textContent = currentSlideIndex + 1;
+            progressBar.style.width = ((currentSlideIndex + 1) / totalSlides * 100) + '%';
+            
+            // Update button states
+            prevBtn.disabled = currentSlideIndex === 0;
+            nextBtn.disabled = currentSlideIndex === totalSlides - 1;
+            
+            // Re-render MathJax for the current slide
+            if (window.MathJax && window.MathJax.typeset) {
+                MathJax.typeset();
+            }
+        }
+
+        function changeSlide(dir) {
+            showSlide(currentSlideIndex + dir);
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') {
+                e.preventDefault();
+                changeSlide(1);
+            } else if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                changeSlide(-1);
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                showSlide(0);
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                showSlide(totalSlides - 1);
+            }
+        });
+
+        // Initialize
+        showSlide(0);
+    </script>
+
+    <script>
+        // =========================================
+        // UTILS & MATH
+        // =========================================
+        
+        // Prior Distribution Parameters (Centered on Canvas)
+        const PRIOR_CENTER_1 = { x: 300, y: 225 }; // Center of canvas approx
+        const PRIOR_SIGMA_1 = 80; 
+        const PRIOR_CENTER_2 = { x: 120, y: 200 }; // Center of canvas approx
+        const PRIOR_SIGMA_2 = 40; 
+
+        function distSq(p1, p2) {
+            return (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
+        }
+
+        // Gaussian PDF unnormalized
+        function gaussianPdf(x, y, center, sigma) {
+            const d2 = (x - center.x)**2 + (y - center.y)**2;
+            return Math.exp(-d2 / (2 * sigma * sigma));
+        }
+
+        // We ignore the constant factor -log(sqrt(2pi)*sigma) because it cancels out
+        function gaussianLogPdf(x, y, center, sigma) {
+            const dx = x - center.x;
+            const dy = y - center.y;
+            // log(exp(-d^2 / 2s^2)) = -d^2 / 2s^2
+            return -(dx*dx + dy*dy) / (2 * sigma * sigma);
+        }
+
+        // Replacement 2: Robust Posterior Weights using Log-Sum-Exp
+        function getPosteriorWeights(x, targets, t, center, sigma) {
+            // We can get extremely close to 1.0 now without NaN
+            const t_safe = Math.min(t, 0.9999);
+            const one_minus_t = 1 - t_safe;
+
+            let logWeights = [];
+            let maxLogW = -Infinity;
+
+            // 1. Compute Log Weights (Project back to t=0)
+            for (let z of targets) {
+                const x0_x = (x.x - t_safe * z.x) / one_minus_t;
+                const x0_y = (x.y - t_safe * z.y) / one_minus_t;
+
+                const lw = gaussianLogPdf(x0_x, x0_y, center, sigma);
+                logWeights.push(lw);
+                
+                // Track max for stability
+                if (lw > maxLogW) maxLogW = lw;
+            }
+
+            // 2. Log-Sum-Exp Trick
+            // We subtract maxLogW from exponents to prevent underflow to 0
+            // at least one term will be exp(0) = 1
+            let sumExp = 0;
+            let expWeights = [];
+
+            for (let lw of logWeights) {
+                const w = Math.exp(lw - maxLogW);
+                expWeights.push(w);
+                sumExp += w;
+            }
+
+            // 3. Normalize
+            return expWeights.map(w => w / sumExp);
+        }
+
+        // =========================================
+        // New 1D posterior helpers (for Viz 1 & Viz 3 only)
+        // Keep Viz 2's 2D helpers unchanged
+        // =========================================
+        function gaussianLogPdf1D(y, mean, sigma) {
+            const dy = y - mean;
+            return -(dy * dy) / (2 * sigma * sigma);
+        }
+
+        // y: current state (pixel y), targetsY: array of data states (pixel y)
+        // t in [0,1), prior specified by (meanY, sigmaY)
+        function getPosteriorWeights1D(y, targetsY, t, meanY, sigmaY) {
+            const t_safe = Math.min(Math.max(t, 0), 0.9999);
+            const one_minus_t = 1 - t_safe;
+            let logWeights = [];
+            let maxLogW = -Infinity;
+            for (let zy of targetsY) {
+                const y0 = (y - t_safe * zy) / one_minus_t;
+                const lw = gaussianLogPdf1D(y0, meanY, sigmaY);
+                logWeights.push(lw);
+                if (lw > maxLogW) maxLogW = lw;
+            }
+            let sumExp = 0;
+            const expW = [];
+            for (let lw of logWeights) {
+                const w = Math.exp(lw - maxLogW);
+                expW.push(w);
+                sumExp += w;
+            }
+            return expW.map(w => w / sumExp);
+        }
+
+        // Draw a vertical Gaussian "hump" along the left edge (x from 0 toward right),
+        // hinting that mass "comes from the left" of the y-axis.
+        function drawVerticalGaussianHump(ctx, height, meanY, sigmaY, maxWidth, color) {
+            ctx.save();
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.15;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            for (let y = 0; y <= height; y += 2) {
+                const pdf = Math.exp(-((y - meanY) * (y - meanY)) / (2 * sigmaY * sigmaY));
+                const x = Math.min(maxWidth, maxWidth * pdf);
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(0, height);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawArrow(ctx, fromX, fromY, toX, toY, color) {
+            const headlen = 10; 
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const angle = Math.atan2(dy, dx);
+            
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+            
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.fill();
+        }
+
+        // Styled thin arrow (for faint hero arrow in Viz 2)
+        function drawArrowStyled(ctx, fromX, fromY, toX, toY, color, lineWidth, alpha) {
+            const headlen = 8;
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const angle = Math.atan2(dy, dx);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = lineWidth;
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // =========================================
+        // AUDIO: Soft click on direction switch (Viz 2)
+        // =========================================
+        let audioCtx = null;
+        function playClick() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch (e) {
+                return;
+            }
+            const t0 = audioCtx.currentTime;
+            // Short, soft sine "tick"
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(2000, t0);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1000, t0);
+            // gentle envelope
+            gain.gain.setValueAtTime(0.0001, t0);
+            gain.gain.exponentialRampToValueAtTime(0.04, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+            osc.connect(filter).connect(gain).connect(audioCtx.destination);
+            osc.start(t0);
+            osc.stop(t0 + 0.09);
+        }
+
+        // =========================================
+        // VIZ 1: POSTERIOR FIELD
+        // =========================================
+        const cvs1 = document.getElementById('posteriorCanvas');
+        const ctx1 = cvs1.getContext('2d');
+        const inputN = document.getElementById('inputN');
+        const btnResampleData = document.getElementById('btnResampleData');
+
+        let v1 = {
+            stateY: 100,
+            t: 0.5,
+            targetsY: [],
+            animId: null,
+            showArrow: false
+        };
+
+        function initV1Data() {
+            const n = parseInt(inputN.value) || 4;
+            v1.targetsY = [];
+            for (let i = 0; i < n; i++) {
+                let y = (Math.random()+Math.random()+Math.random())/3 * 200 - 100;
+                if (Math.random() < 0.3) {
+                    v1.targetsY.push(y + 125);
+                } else {
+                    v1.targetsY.push(y + 325);
+                }
+            }
+        }
+
+        // Inputs
+        cvs1.addEventListener('mousemove', e => {
+            const r = cvs1.getBoundingClientRect();
+            v1.t = Math.min(Math.max((e.clientX - r.left) / cvs1.width, 0), 1);
+            v1.stateY = e.clientY - r.top;
+        });
+        cvs1.addEventListener('touchmove', e => {
+            e.preventDefault();
+            const r = cvs1.getBoundingClientRect();
+            v1.t = Math.min(Math.max((e.touches[0].clientX - r.left) / cvs1.width, 0), 1);
+            v1.stateY = e.touches[0].clientY - r.top;
+        }, {passive:false});
+
+        btnResampleData.addEventListener('click', initV1Data);
+
+        function loopV1() {
+            drawV1();
+            requestAnimationFrame(loopV1);
+        }
+
+        function drawV1() {
+            ctx1.clearRect(0, 0, cvs1.width, cvs1.height);
+
+            // Axes: x-axis is time [0,1], y-axis is 1D state
+            // Draw a vertical Gaussian hump at x ~ 0 indicating prior over X0
+            const priorMeanY = PRIOR_CENTER_1.y;
+            const priorSigmaY = PRIOR_SIGMA_1;
+            drawVerticalGaussianHump(ctx1, cvs1.height, priorMeanY, priorSigmaY, 60, '#888');
+            ctx1.fillStyle = "#aaa";
+            ctx1.fillText("Prior (t=0)", 2, 20);
+            ctx1.fillText("Data (t=1)", cvs1.width - 50, 20);
+
+            // Current time position on x-axis
+            const tPosX = v1.t * cvs1.width;
+
+            // Compute 1D posterior weights
+            const weights = getPosteriorWeights1D(v1.stateY, v1.targetsY, v1.t, priorMeanY, priorSigmaY);
+
+            // Draw blue worldlines: (x=1,z) -> (t,v1.stateY) -> (x=0,x0)
+            const t_safe = Math.min(v1.t, 0.9999);
+            const one_minus_t = 1 - t_safe;
+            v1.targetsY.forEach((zy, i) => {
+                const w = weights[i];
+                if (w <= 0.005) return;
+                const y0 = (v1.stateY - t_safe * zy) / one_minus_t;
+                ctx1.beginPath();
+                ctx1.moveTo(cvs1.width - 6, zy);
+                ctx1.lineTo(tPosX, v1.stateY);
+                ctx1.lineTo(6, y0);
+                ctx1.strokeStyle = `rgba(256, 256, 256, ${w + 0.025})`;
+                ctx1.lineWidth = w * 5 + 1;
+                ctx1.stroke();
+            });
+
+            // Draw data points at t=1 (right edge)
+            v1.targetsY.forEach((zy) => {
+                ctx1.beginPath();
+                ctx1.arc(cvs1.width - 6, zy, 5, 0, Math.PI * 2);
+                // 50% opacity
+                ctx1.fillStyle = 'rgba(79, 195, 247, 0.5)';
+                ctx1.fill();
+            });
+
+            // Draw the green cursor at (t, stateY)
+            ctx1.beginPath();
+            ctx1.arc(tPosX, v1.stateY, 8, 0, Math.PI*2);
+            ctx1.fillStyle = '#81c784';
+            ctx1.fill();
+            // t overlay near the green dot
+            ctx1.save();
+            ctx1.fillStyle = '#ccc';
+            ctx1.font = '12px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+            const tx1 = cvs1.width/2;
+            const ty1 = 20;
+            ctx1.fillText(`t=${v1.t.toFixed(2)}`, tx1, ty1);
+            ctx1.restore();
+        }
+
+        initV1Data();
+        loopV1();
+
+
+        // =========================================
+        // VIZ 2: SIMULATION
+        // =========================================
+        const cvs2 = document.getElementById('simCanvas');
+        const ctx2 = cvs2.getContext('2d');
+        const btnResetSim = document.getElementById('btnResetSim');
+        const btnRandomizeSim = document.getElementById('btnRandomizeSim');
+        const btnToggleMode = document.getElementById('btnToggleMode');
+        const btnAutoPlay = document.getElementById('btnAutoPlay');
+        const resampleControls = document.getElementById('resampleControls');
+        const stepSizeSlider = document.getElementById('stepSizeSlider');
+        const stepDisplay = document.getElementById('stepDisplay');
+        //const simCaption = document.getElementById('simCaption');
+        const dt = 1 / 1000; // Slow time step
+        const AUTO_STAGES = [
+            { mode: 'resample', interval: 1000 },
+            { mode: 'resample', interval: 100 },
+            { mode: 'resample', interval: 10 },
+            { mode: 'resample', interval: 1 },
+            { mode: 'average' }
+        ];
+
+        // Fixed Targets for Sim
+        //const simTargets = [
+        //    { x: 750, y: 100 }, { x: 780, y: 120 }, { x: 740, y: 130 }, 
+        //    { x: 750, y: 280 }, { x: 780, y: 260 }, { x: 730, y: 290 }
+        //];
+        //Sample these randomly from two gaussians which are ventered on the previously hardcoded points.
+        simTargets = [];
+        for (let i = 0; i < 40; i++) {
+            x = (Math.random()+Math.random()+Math.random())/3 * 50 + 720;
+            y = (Math.random()+Math.random()+Math.random())/3 * 120 + 60;
+            if (Math.random() < 0.3) {
+                y += 150;
+            }
+            simTargets.push({ x, y});
+        }
+
+        let sim = {
+            mode: 'resample', 
+            running: false,
+            t: 0,
+            particles: [],
+            initialSeeds: null,
+            resampleInterval: 100,
+            animId: null,
+            autoPlayActive: false,
+            autoStageIndex: 0
+        };
+
+        function startSimFromSeeds() {
+            sim.running = false;
+            sim.t = 0;
+            sim.particles = [];
+            if (!sim.initialSeeds || sim.initialSeeds.length === 0) {
+                // Safety: if seeds missing, randomize then proceed
+                randomizeInitialSeeds(80);
+            }
+            // Instantiate particles from seeds
+            for (let i = 0; i < sim.initialSeeds.length; i++) {
+                const seed = sim.initialSeeds[i];
+                sim.particles.push({
+                    id: i,
+                    x: seed.x,
+                    y: seed.y,
+                    history: [],
+                    currentZ: null,
+                    timer: 0
+                });
+            }
+
+            // Restart Loop
+            if(sim.animId) cancelAnimationFrame(sim.animId);
+            sim.running = true;
+            simLoop();
+        }
+
+        function buildParticlesFromSeeds() {
+            sim.t = 0;
+            sim.particles = [];
+            if (!sim.initialSeeds || sim.initialSeeds.length === 0) {
+                randomizeInitialSeeds(80);
+            }
+            for (let i = 0; i < sim.initialSeeds.length; i++) {
+                const seed = sim.initialSeeds[i];
+                sim.particles.push({
+                    id: i,
+                    x: seed.x,
+                    y: seed.y,
+                    history: [],
+                    currentZ: null,
+                    timer: 0
+                });
+            }
+        }
+
+        function randomizeInitialSeeds(n = 80) {
+            sim.initialSeeds = [];
+            for(let i=0; i<n; i++) {
+                // Sample from Prior (approx) using Box-Muller
+                const u = 1 - Math.random();
+                const v = Math.random();
+                const z_gauss = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+                const u2 = 1 - Math.random();
+                const v2 = Math.random();
+                const z_gauss2 = Math.sqrt( -2.0 * Math.log( u2 ) ) * Math.cos( 2.0 * Math.PI * v2 );
+                sim.initialSeeds.push({
+                    x: PRIOR_CENTER_2.x + z_gauss * PRIOR_SIGMA_2,
+                    y: PRIOR_CENTER_2.y + z_gauss2 * PRIOR_SIGMA_2
+                });
+            }
+        }
+
+        function randomizeAndStartSim() {
+            randomizeInitialSeeds(80);
+            startSimFromSeeds();
+        }
+
+        function setSimMode(mode, interval) {
+            if (mode === 'resample') {
+                sim.mode = 'resample';
+                // Must display interval in the button text
+                if (interval === 1000) {
+                    btnToggleMode.textContent = "Mode: Conditional Proces";
+                } else if (interval === 100) {
+                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.1)";
+                } else if (interval === 10) {
+                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.01)";
+                } else if (interval === 1) {
+                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.001)";
+                }
+                btnToggleMode.classList.remove('active');
+                // Keep controls visible; enable slider
+                resampleControls.style.display = 'flex';
+                stepSizeSlider.disabled = false;
+                resampleControls.style.opacity = '1';
+            } else {
+                sim.mode = 'average';
+                btnToggleMode.textContent = "Mode: Averaged (Smooth)";
+                btnToggleMode.classList.add('active');
+                // Keep controls visible; disable slider to avoid layout jump
+                resampleControls.style.display = 'flex';
+                stepSizeSlider.disabled = true;
+                resampleControls.style.opacity = '0.5';
+            }
+        }
+
+        function applyStageAndStart(idx) {
+            const stage = AUTO_STAGES[idx];
+            if (!stage) return;
+            if (stage.mode === 'resample') {
+                setSimMode('resample', stage.interval);
+                sim.resampleInterval = stage.interval;
+                stepSizeSlider.value = String(stage.interval);
+                stepDisplay.textContent = parseFloat(stage.interval * dt).toFixed(3);
+            } else {
+                setSimMode('average', stage.interval);
+            }
+            startSimFromSeeds();
+        }
+
+        function updateSimState() {
+            if(!sim.running) return;
+
+            sim.t += dt;
+            if (sim.t >= 1.0) {
+                sim.t = 1.0;
+                sim.running = false;
+            }
+
+            const t = sim.t;
+            const denom = Math.max(1 - t, 0.02); 
+
+            sim.particles.forEach(p => {
+                // Save Trail
+                if (Math.floor(t * 400) % 3 === 0) {
+                    p.history.push({x: p.x, y: p.y});
+                }
+
+                const weights = getPosteriorWeights(p, simTargets, t, PRIOR_CENTER_2, PRIOR_SIGMA_2);
+
+                if (sim.mode === 'average') {
+                    // Weighted Average Step
+                    let vx = 0, vy = 0;
+                    simTargets.forEach((z, i) => {
+                        vx += weights[i] * (z.x - p.x);
+                        vy += weights[i] * (z.y - p.y);
+                    });
+                    // dx = u_t * dt = (AverageVec / (1-t)) * dt
+                    p.x += (vx / denom) * dt;
+                    p.y += (vy / denom) * dt;
+                
+                } else {
+                    // Resample Step
+                    p.timer--;
+                    if (p.timer <= 0 || !p.currentZ) {
+                        p.timer = sim.resampleInterval;
+                        // Sample Z
+                        let r = Math.random();
+                        let cum = 0;
+                        const oldZ = p.currentZ;
+                        let chosen = simTargets[simTargets.length - 1];
+                        for(let i=0; i<weights.length; i++){
+                            cum += weights[i];
+                            if(r <= cum) {
+                                chosen = simTargets[i];
+                                break;
+                            }
+                        }
+                        p.currentZ = chosen;
+                        if (p.id === 0 && p.currentZ !== oldZ) {
+                            playClick();
+                        }
+                    }
+                    // Step towards chosen Z
+                    const vx = p.currentZ.x - p.x;
+                    const vy = p.currentZ.y - p.y;
+                    p.x += (vx / denom) * dt;
+                    p.y += (vy / denom) * dt;
+                }
+            });
+        }
+
+        function drawSim() {
+            ctx2.clearRect(0, 0, cvs2.width, cvs2.height);
+
+            ctx2.fillStyle = "#888";
+            ctx2.fillText("Prior (t=0)", PRIOR_CENTER_2.x - 40, 20);
+            ctx2.fillText("Data (t=1)", cvs2.width - 50, 20);
+
+            // Identify Hero
+            const hero = sim.particles[0];
+
+            // 1. Draw Targets (Visuals depend on Hero)
+            // Calculate Hero Weights for visualization
+            const heroWeights = getPosteriorWeights(hero, simTargets, sim.t, PRIOR_CENTER_2, PRIOR_SIGMA_2);
+
+            simTargets.forEach((z, i) => {
+                ctx2.beginPath();
+                ctx2.arc(z.x, z.y, 6, 0, Math.PI*2);
+                
+                // Base Outline, with 50% opacity
+                ctx2.strokeStyle = 'rgba(79, 195, 247, 0.25)';
+                ctx2.lineWidth = 2;
+                ctx2.stroke();
+
+                // Fill Logic
+                if (sim.mode === 'average') {
+                    // Opacity based on weight
+                    ctx2.fillStyle = `rgba(79, 195, 247, ${heroWeights[i]})`;
+                    ctx2.fill();
+                } else {
+                    // Resample Mode: Only highlight the one chosen by Hero
+                    if (hero.currentZ === z) {
+                        ctx2.fillStyle = '#4fc3f7';
+                        ctx2.fill();
+                    } else {
+                        ctx2.fillStyle = 'transparent';
+                        ctx2.fill();
+                    }
+                }
+            });
+
+            // 2. Draw Background Particles (Faded)
+            ctx2.lineWidth = 1;
+            for(let i=1; i<sim.particles.length; i++) {
+                let p = sim.particles[i];
+                if(p.history.length > 0) {
+                    ctx2.beginPath();
+                    ctx2.moveTo(p.history[0].x, p.history[0].y);
+                    for(let pt of p.history) ctx2.lineTo(pt.x, pt.y);
+                    ctx2.lineTo(p.x, p.y);
+                    ctx2.strokeStyle = 'rgba(255,255,255,0.12)';
+                    ctx2.stroke();
+                }
+            }
+
+            // 3. Draw Hero Particle (Red, Bold)
+            ctx2.lineWidth = 2.5;
+            ctx2.strokeStyle = '#f06292'; // reddish
+            ctx2.beginPath();
+            if(hero.history.length > 0) {
+                ctx2.moveTo(hero.history[0].x, hero.history[0].y);
+                for(let pt of hero.history) ctx2.lineTo(pt.x, pt.y);
+                ctx2.lineTo(hero.x, hero.y);
+            }
+            ctx2.stroke();
+
+            // 3.5 Draw thin faint red arrow for the Hero
+            if (sim.mode === 'average') {
+                // Arrow toward average direction (like Viz 1)
+                let avgVx = 0, avgVy = 0;
+                simTargets.forEach((z, i) => {
+                    avgVx += heroWeights[i] * (z.x - hero.x);
+                    avgVy += heroWeights[i] * (z.y - hero.y);
+                });
+                drawArrowStyled(ctx2, hero.x, hero.y, hero.x + avgVx, hero.y + avgVy, '#f06292', 1, 0.5);
+            } else {
+                // Arrow toward current chosen Z
+                if (hero.currentZ) {
+                    drawArrowStyled(ctx2, hero.x, hero.y, hero.currentZ.x, hero.currentZ.y, '#f06292', 1, 0.5);
+                }
+            }
+
+            ctx2.beginPath();
+            ctx2.arc(hero.x, hero.y, 4, 0, Math.PI*2);
+            ctx2.fillStyle = '#f06292';
+            ctx2.fill();
+
+            // Progress Bar
+            ctx2.fillStyle = '#333';
+            ctx2.fillRect(0, cvs2.height - 5, cvs2.width, 5);
+            ctx2.fillStyle = sim.mode === 'average' ? '#81c784' : '#f06292';
+            ctx2.fillRect(0, cvs2.height - 5, cvs2.width * sim.t, 5);
+        }
+
+        function simLoop() {
+            updateSimState();
+            drawSim();
+            if(sim.running || sim.t < 1.0) {
+                sim.animId = requestAnimationFrame(simLoop);
+            } else {
+                // Handle auto-play stage transitions
+                if (sim.autoPlayActive) {
+                    sim.autoStageIndex = (sim.autoStageIndex + 1) % AUTO_STAGES.length;
+                    applyStageAndStart(sim.autoStageIndex);
+                }
+            }
+        }
+
+        function drawAutoStageOverlay() {
+            if (!sim.autoPlayActive) return;
+            let label = '';
+            switch (sim.autoStageIndex) {
+                case 0: label = 'Resampled, slow switching'; break;
+                case 1: label = 'Resampled, medium switching'; break;
+                case 2: label = 'Resampled, fast switching'; break;
+                case 3: label = 'Posterior averaged'; break;
+            }
+            if (!label) return;
+            ctx2.save();
+            ctx2.font = '14px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+            const padding = 8;
+            const textWidth = ctx2.measureText(label).width;
+            const x = (cvs2.width - textWidth) / 2 - padding;
+            const y = 8;
+            const w = textWidth + padding * 2;
+            const h = 24;
+            ctx2.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx2.fillRect(x, y, w, h);
+            ctx2.fillStyle = '#fff';
+            ctx2.fillText(label, x + padding, y + 16);
+            ctx2.restore();
+        }
+
+        // Sim Controls
+        //btnResetSim.addEventListener('click', startSimFromSeeds);
+        //btnRandomizeSim.addEventListener('click', randomizeAndStartSim);
+        
+        btnToggleMode.addEventListener('click', () => {
+            if(sim.mode === 'average') setSimMode('resample'); else setSimMode('average');
+            startSimFromSeeds();
+        });
+
+        stepSizeSlider.addEventListener('input', (e) => {
+            sim.resampleInterval = parseInt(e.target.value);
+            stepDisplay.textContent = parseFloat(e.target.value * dt).toFixed(3);
+        });
+
+        btnAutoPlay.addEventListener('click', () => {
+            if (!sim.autoPlayActive) {
+                sim.autoPlayActive = true;
+                btnAutoPlay.textContent = '⏸';
+                sim.autoStageIndex = 0;
+                applyStageAndStart(sim.autoStageIndex);
+            } else {
+                // Pause both sequence cycling and the simulation trajectory
+                sim.autoPlayActive = false;
+                sim.running = false;
+                btnAutoPlay.textContent = '▶ Play Sequence';
+            }
+        });
+
+        // Click to set Hero X0 and restart
+        cvs2.addEventListener('click', (e) => {
+            const rect = cvs2.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            if (!sim.initialSeeds || sim.initialSeeds.length === 0) {
+                randomizeInitialSeeds(80);
+            }
+            // Hero is particle 0
+            sim.initialSeeds[0] = { x, y };
+            startSimFromSeeds();
+        });
+
+        // Init (randomize once, build particles, set defaults; do NOT start running)
+        randomizeInitialSeeds(80);
+        setSimMode('resample');
+        sim.resampleInterval = 100;
+        stepSizeSlider.value = '100';
+        stepDisplay.textContent = parseFloat(100 * dt).toFixed(3);
+        buildParticlesFromSeeds();
+        drawSim();
+
+    </script>
+
+
+    <script>
+        // =========================================
+        // VIZ 3: POSTERIOR FIELD WITH ARROW
+        // =========================================
+        const cvs3 = document.getElementById('posteriorCanvas3');
+        const ctx3 = cvs3.getContext('2d');
+        const inputN3 = document.getElementById('inputN3');
+        const btnResampleData3 = document.getElementById('btnResampleData3');
+
+        let v3 = {
+            stateY: 100,
+            t: 0.5,
+            targetsY: [],
+            animId: null
+        };
+
+        function initV3Data() {
+            const n = parseInt(inputN3.value) || 4;
+            v3.targetsY = [];
+            for (let i = 0; i < n; i++) {
+                let y = (Math.random()+Math.random()+Math.random())/3 * 200 - 100;
+                if (Math.random() < 0.3) {
+                    v3.targetsY.push(y + 125);
+                } else {
+                    v3.targetsY.push(y + 325);
+                }
+            }
+        }
+
+        // Inputs
+        cvs3.addEventListener('mousemove', e => {
+            const r = cvs3.getBoundingClientRect();
+            v3.t = Math.min(Math.max((e.clientX - r.left) / cvs3.width, 0), 1);
+            v3.stateY = e.clientY - r.top;
+        });
+        cvs3.addEventListener('touchmove', e => {
+            e.preventDefault();
+            const r = cvs3.getBoundingClientRect();
+            v3.t = Math.min(Math.max((e.touches[0].clientX - r.left) / cvs3.width, 0), 1);
+            v3.stateY = e.touches[0].clientY - r.top;
+        }, {passive:false});
+
+        btnResampleData3.addEventListener('click', initV3Data);
+
+        function loopV3() {
+            drawV3();
+            requestAnimationFrame(loopV3);
+        }
+
+        function drawV3() {
+            ctx3.clearRect(0, 0, cvs3.width, cvs3.height);
+
+            // Axes and prior hump at x ~ 0
+            const priorMeanY = PRIOR_CENTER_1.y;
+            const priorSigmaY = PRIOR_SIGMA_1;
+            drawVerticalGaussianHump(ctx3, cvs3.height, priorMeanY, priorSigmaY, 60, '#888');
+            ctx3.fillStyle = "#aaa";
+            ctx3.fillText("Prior (t=0)", 2, 20);
+            ctx3.fillText("Data (t=1)", cvs3.width - 50, 20);
+
+            const tPosX = v3.t * cvs3.width;
+
+            // Compute 1D posterior weights
+            const weights = getPosteriorWeights1D(v3.stateY, v3.targetsY, v3.t, priorMeanY, priorSigmaY);
+
+            // Blue worldlines across time
+            const t_safe = Math.min(v3.t, 0.9999);
+            const one_minus_t = 1 - t_safe;
+            v3.targetsY.forEach((zy, i) => {
+                const w = weights[i];
+                if (w <= 0.001) return;
+                const y0 = (v3.stateY - t_safe * zy) / one_minus_t;
+                ctx3.beginPath();
+                ctx3.moveTo(cvs3.width - 6, zy);
+                ctx3.lineTo(tPosX, v3.stateY);
+                ctx3.lineTo(6, y0);
+                //ctx3.strokeStyle = `rgba(79, 195, 247, ${w})`;
+                ctx3.strokeStyle = `rgba(256, 256, 256, ${w + 0.025})`;
+                ctx3.lineWidth = w * 4 + 1;
+                ctx3.stroke();
+            });
+
+            // Data points at t=1
+            v3.targetsY.forEach((zy) => {
+                ctx3.beginPath();
+                ctx3.arc(cvs3.width - 6, zy, 5, 0, Math.PI * 2);
+                ctx3.fillStyle = 'rgba(79, 195, 247, 0.25)';
+                ctx3.fill();
+            });
+
+            // Green point (t, stateY)
+            ctx3.beginPath();
+            ctx3.arc(tPosX, v3.stateY, 8, 0, Math.PI*2);
+            ctx3.fillStyle = '#81c784';
+            ctx3.fill();
+
+            // Red arrow: point to posterior-averaged X1 on the t=1 line
+            let yAvg1 = 0;
+            v3.targetsY.forEach((zy, i) => {
+                yAvg1 += weights[i] * zy;
+            });
+            drawArrow(ctx3, tPosX, v3.stateY, cvs3.width - 6, yAvg1, '#f06292');
+
+            // t overlay near the green dot
+            ctx3.save();
+            ctx3.fillStyle = '#ccc';
+            ctx3.font = '12px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
+            const tx3 = cvs3.width/2;
+            const ty3 = 20;
+            ctx3.fillText(`t=${v3.t.toFixed(2)}`, tx3, ty3);
+            ctx3.restore();
+        }
+
+        initV3Data();
+        loopV3();
+    </script>
+    
+</body>
+</html>
