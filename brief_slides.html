@@ -501,9 +501,9 @@
                     <li>Sample $z$ from $p(z)$, then sample $p(x_t \mid z, t)$</li>
                     <li>With $n$ training samples of equal probability, one per $z$:</li>
                 </ul>
-                <div class="equation">
-                    $$p(x_t \mid t) = \frac{1}{n} \sum_{i=1}^n p(x_t \mid z_i, t)$$
-                </div>
+                
+                <p style="font-size: 1.2rem; margin: 1.5rem 0;">$$p(x_t \mid t) = \frac{1}{n} \sum_{i=1}^n p(x_t \mid z_i, t)$$</p>
+                
                 <ul>
                     <li><strong>At $t=1$:</strong> This marginal equals the training data distribution</li>
                 </ul>
@@ -566,7 +566,7 @@
                     If you discard $z$ you're in the marginal distribution $p(x_t \mid t)$, and if you resample $z$ from the posterior you get:
                     $$p(x_t, z \mid t) = p(z \mid x_t, t) p(x_t \mid t) $$
                     After resampling $z$ the joint distribution is unchanged, and the step is the same, so the distribution at $p(x_{t+\Delta t}, z \mid t+\Delta t)$ will agree as well.
-                    So since they both start from $p(x_0)$ at $t=0$, by induction the marginals will match for all time steps.
+                    So since they both start from $p(x_0)$ at $t=0$, the marginals $p(x_t \mid t)$ will match for all time steps.
                 </p>
             </div>
         </div>
@@ -602,24 +602,19 @@
         <!-- SLIDE 11: Infinite Switching Limit -->
         <div class="slide" data-slide="11">
             <div class="slide-content">
-                <h2>Generator Matching: the limit of the Resample-$z$ Process</h2>
-                
+                <h2>The limit of the Resample-$z$ Process</h2>
+                <p style="font-size: 1.2rem; margin: 1.5rem 0;">With our pure-drift flow matching example:</p>
                 <ul>
-                    <li><strong>Without resampling:</strong> Straight lines from $x_0$ to $x_1$</li>
+                    <li><strong>Without resampling:</strong> Straight lines from $x_0$ to $x_1$ (i.e. the conditional process)</li>
                     <li><strong>With slow resampling:</strong> Jagged, zig-zagging paths</li>
                     <li><strong>With fast resampling:</strong> Law of large numbers kicks in</li>
                 </ul>
 
-                <div class="key-point">
-                    As switching rate → ∞, the path converges to a <em>smooth posterior-weighted average</em> over all $z$ values.
-                </div>
-
-                <h3>The Posterior-Averaged Velocity</h3>
-                <div class="equation">
-                    $$ \bar{u}_t(x) = \sum_{k=1}^N p(z_k\mid x,t)\,u_t(x \mid z_k) $$
-                </div>
-
-                <h3>Generator Matching:</h3>
+                <p style="font-size: 1.2rem; margin: 1.5rem 0;">As switching rate → ∞, the path converges to a <em>smooth posterior-weighted average</em> over all $z$ values.
+                $$ \bar{u}_t(x) = \sum_{k=1}^N p(z_k\mid x,t)\,u_t(x \mid z_k) $$
+                <strong>We can train a model to directly learn this average.</strong></p>
+                
+                <h2>Generator Matching:</h2>
 
                 <ul>
                     <li>The marginal matching and switching-rate-limit arguments hold for other kinds of conditional process.</li>
