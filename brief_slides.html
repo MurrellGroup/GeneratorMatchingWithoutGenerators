@@ -374,8 +374,8 @@
         .two-col {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-            margin: 1rem 0;
+            gap: 1rem;
+            margin: 0rem 0;
         }
 
         /* SVG figures */
@@ -544,7 +544,7 @@
             <div class="slide-content">
                 <h2>The Resample-$z$ Process</h2>
                 
-                <p style="font-size: 1.2rem; margin-bottom: 1rem;">The conditional process samples $x_t$ but first sampling $z$ from $p(z)$, then sampling $x_t$ from $p(x_t \mid z, t)$ by stepping from $x_0$.
+                <p style="font-size: 1.2rem; margin-bottom: 1rem;">The conditional process samples $x_t$ by first sampling $z$ from $p(z)$, then sampling $x_t$ from $p(x_t \mid z, t)$ by stepping from $x_0$.
                     Consider a modified process that every now and again:</p>
                 
                 <blockquote>
@@ -562,9 +562,9 @@
 
                 <p style="font-size: 1.2rem; margin: 1.5rem 0;">Why?
                     Under the conditional process, sampling $z$ then $x_t$ has the joint distribution:
-                    $$p(x_t, z \mid t) = p(x_t \mid z, t) p(z) $$
+                    $$p(x_t \mid z, t) p(z) = p(x_t, z \mid t)$$
                     If you discard $z$ you're in the marginal distribution $p(x_t \mid t)$, and if you resample $z$ from the posterior you get:
-                    $$p(x_t, z \mid t) = p(z \mid x_t, t) p(x_t \mid t) $$
+                    $$p(z \mid x_t, t) p(x_t \mid t) = p(x_t, z \mid t)$$
                     After resampling $z$ the joint distribution is unchanged, and the step is the same, so the distribution at $p(x_{t+\Delta t}, z \mid t+\Delta t)$ will agree as well.
                     So since they both start from $p(x_0)$ at $t=0$, the marginals $p(x_t \mid t)$ will match for all time steps.
                 </p>
@@ -619,7 +619,7 @@
                 <ul>
                     <li>The marginal matching and switching-rate-limit arguments hold for other kinds of conditional process.</li>
                     <li>Use a Bregman divergence to train a model $f_\theta(t, x)$ that directly learns this average step.</li>
-                    <li>Generate new samples by integrating forward from $x_0$ using the learned model.</li>
+                    <li>Generate new samples by stepping from $x_0$ using the learned model.</li>
                 </ul>
             </div>
         </div>
@@ -641,7 +641,7 @@
                     
                     <div class="caption">
                         <span style="color:#81c784; font-weight:bold;">Green Dot</span> = $(t, x_t)$ &nbsp;|&nbsp;
-                        <span style="color:#4fc3f7; font-weight:bold;">Blue Lines</span> = posterior weights &nbsp;|&nbsp;
+                        <span style="color:#e5eef2; font-weight:bold;">White Lines</span> = posterior weights &nbsp;|&nbsp;
                         <span style="color:var(--accent-color); font-weight:bold;">Red Arrow</span> = averaged velocity to $t=1$
                     </div>
                 </div>
@@ -657,14 +657,14 @@
                         <h3>Case I: Pure Drift (Flow)</h3>
                         <img width="400" src="assets/ex1_flow.svg" alt="Drift-only flow matching case"/>
                         <ul class="compact-list">
-                            <li>Average the velocities directly</li>
+                            <li>Average the velocities</li>
                         </ul>
                     </div>
                     <div>
                         <h3>Case II: Drift + Diffusion</h3>
                         <img width="400" src="assets/ex2_driftdiffusion.svg" alt="Drift+Diffusion case"/>
                         <ul class="compact-list">
-                            <li>Average drift and <em>variances</em></li>
+                            <li>Average the drift and the variance</li>
                         </ul>
                     </div>
                 </div>
@@ -687,6 +687,31 @@
                 </div>
             </div>
         </div>
+
+        
+
+        <div class="slide" data-slide="8">
+            <div class="slide-content">
+                <h2>Auxiliary Generator Matching with a time-dependent latent process</h2>
+                <ul>
+                    <li>Consider a conditional process over $x_t,g_t$ with steps $p(x_{t+\Delta t}, g_{t+\Delta t} \mid x_t, g_t, z, t)$</li>                    
+                    <li>Conditional process as before, still terminating at $x_1^z$ when $t=1$ (with no required constraint on $g_1$). Note: this process is not Markov in $x$ alone.</li>
+                    <li>Induces a marginal $p(x_t \mid t)$, and a posterior $p(g_t, z \mid x_t, t)$.</li>
+                </ul>
+                <ul>
+                    <li>Consider a posterior resampling process but now where $z$ and $g_t$ are both sometimes resampled from $p(g_t, z \mid x_t, t)$ as the process steps forward. As before, and by the same argument, the marginal $p(x_t \mid t)$ is unchanged by the resampling.</li>
+                </ul>
+                <div class="key-point">
+                    Taking the limit as the resampling rate goes to infinity yields a process that has the same marginal $p(x_t \mid t)$ as the original conditional process. But now, since $g_t$ and $z$ have been marginalized out, the process is Markov in $x$ alone, and a model can be trained to take $x_t, t$ and predict the posterior-averaged step on $x$.
+                </div>
+                <ul>
+                    <li>The details of step averaging depends on how $x_t$ and $g_t$ are related.</li>
+                    <li>For example, in Edit Flows, $x_t = \phi(g_t)$ and $g_t$ is a sequence containing some "null" tokens, and $\phi$ removes the null tokens. This means a substitution-to-null in $g_t$ is a deletion in $x_t$, and a substitution from null to a non-null token in $g_t$ is an insertion in $x_t$. So the model takes in a sequence, but predicts rates that include insertion and deletion operations.</li>
+                </ul>               
+
+            </div>
+        </div>
+
 
     </div>
 
