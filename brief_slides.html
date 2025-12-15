@@ -619,7 +619,8 @@
 
                 <ul>
                     <li>The marginal matching and switching-rate-limit arguments hold for other kinds of conditional process.</li>
-                    <li>Use a Bregman divergence to train a model $f_\theta(t, x)$ that directly learns this average step.</li>
+                    <li>Use the conditional process to generate training samples.</li>
+                    <li>Use a Bregman divergence to train a model $f_\theta(t, x)$ that directly learns the average step.</li>
                     <li>Generate new samples by stepping from $x_0$ using the learned model.</li>
                 </ul>
             </div>
@@ -696,7 +697,7 @@
                 <h2>Auxiliary Generator Matching with a time-dependent latent process</h2>
                 <ul>
                     <li>Consider a conditional process over $x_t,g_t$ with steps $p(x_{t+\Delta t}, g_{t+\Delta t} \mid x_t, g_t, z, t)$</li>                    
-                    <li>Conditional process as before, still terminating at $x_1^z$ when $t=1$ (with no required constraint on $g_1$). Note: this process is not Markov in $x$ alone.</li>
+                    <li>Conditional process as before, still terminating at $x_1^z$ when $t=1$ (with no required constraint on $g_1$). Note: this process is not necessarily Markov in $x$ alone.</li>
                     <li>Induces a marginal $p(x_t \mid t)$, and a posterior $p(g_t, z \mid x_t, t)$.</li>
                 </ul>
                 <ul>
@@ -707,7 +708,8 @@
                 </div>
                 <ul>
                     <li>The details of step averaging depends on how $x_t$ and $g_t$ are related.</li>
-                    <li>For example, in Edit Flows, $x_t = \phi(g_t)$ and $g_t$ is a sequence containing some "null" tokens, and $\phi$ removes the null tokens. This means a substitution-to-null in $g_t$ is a deletion in $x_t$, and a substitution from null to a non-null token in $g_t$ is an insertion in $x_t$. So the model takes in a sequence, but predicts rates that include insertion and deletion operations.</li>
+                    <li>For example, in Edit Flows, $x_t = \phi(g_t)$ and $g_t$ is a sequence containing some "null" tokens, and $\phi$ removes the null tokens. This means a substitution-to-null in $g_t$ is a deletion in $x_t$, and a substitution from null to a non-null token in $g_t$ is an insertion in $x_t$. So the model takes in a sequence without null tokens, but predicts rates that include insertion and deletion operations. <!--The rates learned are the posterior-averaged rates over all $g_t$ such that $\phi(g_t) = x_t$.-->
+                    </li>
                 </ul>               
 
             </div>
