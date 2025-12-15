@@ -614,15 +614,7 @@
                 <p style="font-size: 1.2rem; margin: 1.5rem 0;">As switching rate → ∞, the path converges to a <em>smooth posterior-weighted average</em> over all $z$ values.
                 $$ \bar{u}_t(x) = \sum_{k=1}^N p(z_k\mid x,t)\,u_t(x \mid z_k) $$
                 <strong>We can train a model to directly learn this average.</strong></p>
-                
-                <h2>Generator Matching:</h2>
 
-                <ul>
-                    <li>The marginal matching and switching-rate-limit arguments hold for other kinds of conditional process.</li>
-                    <li>Use the conditional process to generate training samples.</li>
-                    <li>Use a Bregman divergence to train a model $f_\theta(t, x)$ that directly learns the average step.</li>
-                    <li>Generate new samples by stepping from $x_0$ using the learned model.</li>
-                </ul>
             </div>
         </div>
 
@@ -647,6 +639,19 @@
                         <span style="color:var(--accent-color); font-weight:bold;">Red Arrow</span> = averaged velocity to $t=1$
                     </div>
                 </div>
+            </div>
+        </div>
+
+         <!-- SLIDE 11: Infinite Switching Limit -->
+         <div class="slide" data-slide="11">
+            <div class="slide-content">
+                <h2>Generator Matching:</h2>
+                <ul>
+                    <li>The marginal matching and switching-rate-limit arguments hold for other kinds of conditional process.</li>
+                    <li>Use the conditional process to generate training samples.</li>
+                    <li>Use a Bregman divergence to train a model $f_\theta(t, x)$ that directly learns the average step.</li>
+                    <li>Generate new samples by stepping from $x_0$ using the learned model.</li>
+                </ul>
             </div>
         </div>
 
