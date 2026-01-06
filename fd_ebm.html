@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diffusion Score Matching - Fixed</title>
+    <style>
+        :root {
+            --bg: #f8f9fa;
+            --panel-bg: #ffffff;
+            --text: #2c3e50;
+            --border: #e9ecef;
+            --accent: #6200ea;
+            --accent-sec: #00bfa5;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 360px;
+            background: var(--panel-bg);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.03);
+            z-index: 10;
+        }
+
+        h1, h3 { margin: 0 0 5px 0; }
+        h1 { font-size: 1.1rem; color: #1a1a1a; font-weight: 700; }
+        h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: #6c757d; margin-top: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        p { font-size: 0.8rem; color: #666; margin: 0; line-height: 1.4; }
+
+        .control-group { display: flex; flex-direction: column; gap: 4px; }
+        label { font-size: 0.75rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center;}
+        input[type=range] { width: 100%; margin: 6px 0;}
+        
+        .button-row { display: flex; gap: 8px; }
+        
+        button {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+            background-color: #f1f3f5;
+            color: #495057;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); border-color: #dee2e6; }
+        button:active { transform: translateY(0); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        .btn-primary { background-color: var(--accent); color: white; }
+        .btn-danger { background-color: #fa5252; color: white; }
+        .btn-success { background-color: #40c057; color: white; }
+        
+        .mode-toggle {
+            display: flex;
+            background: #f1f3f5;
+            border-radius: 6px;
+            padding: 3px;
+        }
+        .mode-toggle button {
+            background: transparent;
+            color: #868e96;
+            box-shadow: none;
+            font-size: 0.75rem;
+            border: none;
+            padding: 6px;
+        }
+        .mode-toggle button.active {
+            background: white;
+            color: var(--accent);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .mode-toggle button.active.direct { color: var(--accent-sec); }
+
+        #main {
+            flex: 1;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f4f4f4;
+            user-select: none;
+        }
+
+        canvas {
+            background: white;
+            box-shadow: 0 0 30px rgba(0,0,0,0.05);
+            border-radius: 8px;
+            cursor: crosshair;
+        }
+
+        #loss-container {
+            margin-top: 5px;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            background: #fff;
+            padding: 5px;
+            height: 70px;
+        }
+        #loss-canvas { width: 100%; height: 100%; display: block; }
+
+        #stats { font-family: 'SF Mono', 'Menlo', monospace; font-size: 0.7rem; color: #555; margin-top: 2px; }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            pointer-events: none;
+            font-size: 0.75rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .line { width: 20px; height: 2px; }
+
+        #viz-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.98);
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            z-index: 100;
+            border: 1px solid rgba(0,0,0,0.05);
+            min-width: 240px;
+        }
+        .viz-row { display: flex; gap: 10px; align-items: center; width: 100%; justify-content: space-between; }
+        .viz-hidden { display: none !important; }
+
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <div>
+            <h1>Diffusion Score Matching</h1>
+            <p><strong>Setup:</strong> VP-SDE.<br>
+            t=0 (Data) &larr; Diffusion &rarr; t=1 (Noise)</p>
+        </div>
+
+        <h3>Data Distribution (t=0)</h3>
+        <div class="button-row">
+            <button id="btn-clear-target" style="background: #ff922b; color: white;">Clear / Draw</button>
+            <button id="btn-reset-target">Spiral Preset</button>
+        </div>
+        <p style="margin-top:4px; font-style:italic;" id="draw-hint">Current: Spiral</p>
+
+        <h3>Model Formulation</h3>
+        <div class="mode-toggle">
+            <button id="mode-direct" onclick="setMode('direct')">Direct Score</button>
+            <button id="mode-energy" class="active" onclick="setMode('energy')">Energy (FD)</button>
+        </div>
+        <div id="desc-direct" style="display:none; margin-top:8px;">
+            <p><strong>Direct Score Matching</strong><br>
+            Net outputs vector $\mathbf{s}$.<br>
+            Loss weighted by $\sigma_t^2$ (predicting $\epsilon$).</p>
+        </div>
+        <div id="desc-energy" style="margin-top:8px;">
+            <p><strong>Energy-Based Model</strong><br>
+            Net outputs scalar $E$. Score $-\nabla E$.<br>
+            FD Estimator with $\sigma_t^2$ variance reduction.</p>
+        </div>
+
+        <h3>Hyperparameters</h3>
+        <div class="control-group">
+            <label>Width: <span id="val-width">64</span></label>
+            <input type="range" id="inp-width" min="32" max="128" step="16" value="64">
+        </div>
+        
+        <div id="controls-ebm" class="control-group">
+            <label>FD Epsilon ($\epsilon$): <span id="val-eps">0.01</span></label>
+            <input type="range" id="inp-eps" min="-3" max="-1" step="0.1" value="-2">
+        </div>
+
+        <div class="control-group">
+            <label>Learning Rate: <span id="val-lr">0.001</span></label>
+            <input type="range" id="inp-lr" min="-4.5" max="-2" step="0.1" value="-3">
+        </div>
+        
+        <button id="btn-reset-model" style="margin-top:5px;">Re-Initialize Weights</button>
+
+        <h3>Training Status</h3>
+        <div class="button-row">
+            <button id="btn-train" class="btn-primary">Train</button>
+            <button id="btn-stop" class="btn-danger" disabled>Stop</button>
+        </div>
+        <div id="stats">Step: 0 | Loss: 0.000</div>
+        <div id="loss-container">
+            <canvas id="loss-canvas" width="300" height="70"></canvas>
+        </div>
+
+        <h3>Generation</h3>
+        <div class="control-group">
+            <label>Count: <span id="val-gen-count">200</span></label>
+            <input type="range" id="inp-gen-count" min="50" max="500" step="50" value="200">
+        </div>
+        <div class="button-row">
+            <button id="btn-gen" class="btn-success">Generate</button>
+            <button id="btn-clear-gen">Clear</button>
+        </div>
+        
+        <div style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+            <button id="btn-toggle-viz" style="width:100%; background:#343a40; color:white;">Toggle Energy Viz</button>
+        </div>
+        <div class="control-group" style="margin-top:5px;">
+            <label><input type="checkbox" id="chk-show-true" checked> Show Data (t=0)</label>
+        </div>
+    </div>
+
+    <div id="main">
+        <canvas id="canvas" width="800" height="800"></canvas>
+        
+        <div class="legend">
+            <div class="legend-item"><div class="dot" style="background:#ffcc00"></div> Data (t=0)</div>
+            <div class="legend-item"><div class="dot" style="background:#40c057"></div> Generated</div>
+            <div class="legend-item"><div class="line" style="background:#ff8888"></div> Trajectory</div>
+        </div>
+
+        <div id="viz-controls" class="viz-hidden">
+            <div class="viz-row">
+                <span style="font-weight:bold; font-size:0.85rem; color:#555;">Viz Time $t$:</span>
+                <input type="range" id="inp-viz-time" min="0" max="1" step="0.01" value="0.0" style="flex:1;">
+                <span id="val-viz-time" style="width:30px; font-family:monospace;">0.00</span>
+            </div>
+            
+            <div class="viz-row">
+                <span style="font-weight:bold; font-size:0.85rem; color:#555;">Grid:</span>
+                <input type="range" id="inp-viz-res" min="30" max="150" step="10" value="40" style="flex:1;">
+                <span id="val-viz-res" style="width:30px; font-family:monospace;">40</span>
+            </div>
+
+            <div class="viz-row" style="background: #f1f3f5; padding: 4px; border-radius: 4px; justify-content:center;">
+                <button id="btn-viz-prob" class="active" style="flex:1; background:white; color:#333; box-shadow:0 1px 2px rgba(0,0,0,0.1);">Probability</button>
+                <button id="btn-viz-energy" style="flex:1; background:transparent; color:#666;">Energy</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+/* 
+   TINY DEEP LEARNING LIBRARY
+*/
+
+class Tensor {
+    constructor(rows, cols, data = null) {
+        this.rows = rows;
+        this.cols = cols;
+        this.length = rows * cols;
+        this.data = data ? data : new Float32Array(this.length);
+        this.grad = new Float32Array(this.length);
+        this.requiresGrad = false; 
+    }
+
+    static randn(rows, cols, scale = 1.0) {
+        const t = new Tensor(rows, cols);
+        for(let i=0; i<t.length; i++) {
+            const u = 1 - Math.random();
+            const v = Math.random();
+            const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            t.data[i] = z * scale;
+        }
+        return t;
+    }
+
+    static zeros(rows, cols) { return new Tensor(rows, cols); }
+
+    zeroGrad() { this.grad.fill(0); }
+}
+
+function matmul(A, B) {
+    const C = new Tensor(A.rows, B.cols);
+    for (let i = 0; i < A.rows; i++) {
+        for (let k = 0; k < A.cols; k++) {
+            const aVal = A.data[i * A.cols + k];
+            if (aVal === 0) continue; 
+            for (let j = 0; j < B.cols; j++) {
+                C.data[i * B.cols + j] += aVal * B.data[k * B.cols + j];
+            }
+        }
+    }
+    return C;
+}
+
+class Linear {
+    constructor(inDim, outDim) {
+        const scale = Math.sqrt(2.0 / (inDim + outDim));
+        this.W = Tensor.randn(inDim, outDim, scale);
+        this.b = Tensor.zeros(1, outDim);
+        this.inDim = inDim;
+        this.outDim = outDim;
+        this.input = null;
+    }
+
+    forward(input) {
+        this.input = input; 
+        const output = matmul(input, this.W);
+        for (let i = 0; i < output.rows; i++) {
+            for (let j = 0; j < output.cols; j++) {
+                output.data[i * output.cols + j] += this.b.data[j];
+            }
+        }
+        return output;
+    }
+
+    backward(gradOutput) {
+        for (let i = 0; i < gradOutput.rows; i++) {
+            for (let j = 0; j < gradOutput.cols; j++) {
+                const g = gradOutput.grad[i * gradOutput.cols + j];
+                this.b.grad[j] += g;
+            }
+        }
+
+        const dInput = new Tensor(this.input.rows, this.input.cols);
+
+        for (let i = 0; i < this.input.rows; i++) {
+            for (let j = 0; j < this.outDim; j++) {
+                const g = gradOutput.grad[i * this.outDim + j];
+                const inOffset = i * this.inDim;
+                
+                for (let k = 0; k < this.inDim; k++) {
+                   this.W.grad[k * this.outDim + j] += this.input.data[inOffset + k] * g;
+                }
+
+                for (let k = 0; k < this.inDim; k++) {
+                    dInput.grad[inOffset + k] += g * this.W.data[k * this.outDim + j];
+                }
+            }
+        }
+        return dInput;
+    }
+
+    params() { return [this.W, this.b]; }
+}
+
+class Swish {
+    constructor() { this.input = null; }
+    forward(input) {
+        this.input = input;
+        const out = new Tensor(input.rows, input.cols);
+        for(let i=0; i<input.length; i++) {
+            const x = input.data[i];
+            out.data[i] = x / (1.0 + Math.exp(-x));
+        }
+        return out;
+    }
+    backward(gradOutput) {
+        if (!this.input) return null;
+        const dInput = new Tensor(this.input.rows, this.input.cols);
+        for(let i=0; i<this.input.length; i++) {
+            const x = this.input.data[i];
+            const sig = 1.0 / (1.0 + Math.exp(-x));
+            const swish = x * sig;
+            dInput.grad[i] = gradOutput.grad[i] * (swish + sig * (1 - swish));
+        }
+        return dInput;
+    }
+}
+
+class MLP {
+    constructor(layersConfig) {
+        this.layers = [];
+        for(let i=0; i<layersConfig.length - 1; i++) {
+            this.layers.push(new Linear(layersConfig[i], layersConfig[i+1]));
+            if (i < layersConfig.length - 2) {
+                this.layers.push(new Swish()); 
+            }
+        }
+    }
+
+    forward(x) {
+        let out = x;
+        for(let layer of this.layers) {
+            out = layer.forward(out);
+        }
+        return out;
+    }
+
+    backward(lossGrad) {
+        let grad = lossGrad;
+        for(let i=this.layers.length-1; i>=0; i--) {
+            grad = this.layers[i].backward(grad);
+            if (!grad) return null; 
+        }
+        return grad; 
+    }
+
+    zeroGrads() {
+        for(let layer of this.layers) {
+            if(layer.params) {
+                for(let p of layer.params()) p.zeroGrad();
+            }
+        }
+    }
+
+    params() {
+        let p = [];
+        for(let layer of this.layers) {
+            if(layer.params) p.push(...layer.params());
+        }
+        return p;
+    }
+}
+
+class Adam {
+    constructor(params, lr=0.001, beta1=0.9, beta2=0.999) {
+        this.params = params;
+        this.lr = lr;
+        this.beta1 = beta1;
+        this.beta2 = beta2;
+        this.t = 0;
+        this.m = params.map(p => new Float32Array(p.length));
+        this.v = params.map(p => new Float32Array(p.length));
+    }
+
+    step() {
+        this.t++;
+        for(let i=0; i<this.params.length; i++) {
+            const p = this.params[i];
+            const grad = p.grad;
+            const m = this.m[i];
+            const v = this.v[i];
+
+            for(let j=0; j<p.length; j++) {
+                let g = grad[j];
+                // Clipping
+                if (g > 5.0) g = 5.0; if (g < -5.0) g = -5.0;
+
+                m[j] = this.beta1 * m[j] + (1 - this.beta1) * g;
+                v[j] = this.beta2 * v[j] + (1 - this.beta2) * g * g;
+                
+                const mHat = m[j] / (1 - Math.pow(this.beta1, this.t));
+                const vHat = v[j] / (1 - Math.pow(this.beta2, this.t));
+                
+                p.data[j] -= this.lr * mHat / (Math.sqrt(vHat) + 1e-8);
+                grad[j] = 0; 
+            }
+        }
+    }
+}
+
+/* 
+   APPLICATION LOGIC
+*/
+
+// State
+let model, optimizer;
+let mode = 'energy'; 
+let isTraining = false;
+let stepCount = 0;
+let lossHistory = []; 
+let generatedSamples = []; 
+let animationId;
+let vizMode = false;
+let vizTime = 0.0;
+let vizType = 'probability'; 
+let vizRes = 40; // Default resolution
+
+// Config
+const BATCH_SIZE = 64;
+const CANVAS_SIZE = 800;
+const VIEW_SCALE = 120; 
+const CENTER_X = CANVAS_SIZE/2;
+const CENTER_Y = CANVAS_SIZE/2;
+
+// DOM
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const lossCanvas = document.getElementById('loss-canvas');
+const lossCtx = lossCanvas.getContext('2d');
+const elStep = document.getElementById('stats');
+
+// Inputs
+const inpWidth = document.getElementById('inp-width');
+const inpLr = document.getElementById('inp-lr');
+const inpEps = document.getElementById('inp-eps');
+const inpGenCount = document.getElementById('inp-gen-count');
+const inpVizTime = document.getElementById('inp-viz-time');
+const inpVizRes = document.getElementById('inp-viz-res');
+
+// Buttons
+const btnTrain = document.getElementById('btn-train');
+const btnStop = document.getElementById('btn-stop');
+const btnGen = document.getElementById('btn-gen');
+const btnClearGen = document.getElementById('btn-clear-gen');
+const btnReset = document.getElementById('btn-reset-model');
+const btnToggleViz = document.getElementById('btn-toggle-viz');
+const btnClearTarget = document.getElementById('btn-clear-target');
+const btnResetTarget = document.getElementById('btn-reset-target');
+const btnVizProb = document.getElementById('btn-viz-prob');
+const btnVizEnergy = document.getElementById('btn-viz-energy');
+
+// Data State
+let customTargetPoints = []; 
+let useCustomTarget = false;
+
+// Utils
+const worldToScreen = (x, y) => [CENTER_X + x * VIEW_SCALE, CENTER_Y - y * VIEW_SCALE];
+const screenToWorld = (sx, sy) => [(sx - CENTER_X) / VIEW_SCALE, (CENTER_Y - sy) / VIEW_SCALE];
+
+// --- Data Distribution (t=0) ---
+function sampleData(n) {
+    const data = new Float32Array(n * 2);
+    if (useCustomTarget && customTargetPoints.length > 0) {
+        const numPoints = customTargetPoints.length / 2;
+        for(let i=0; i<n; i++) {
+            const idx = Math.floor(Math.random() * numPoints);
+            data[i*2] = customTargetPoints[idx*2] + (Math.random()-0.5)*0.08;
+            data[i*2+1] = customTargetPoints[idx*2+1] + (Math.random()-0.5)*0.08;
+        }
+    } else {
+        // Spiral
+        for(let i=0; i<n; i++) {
+            const rNorm = Math.sqrt(Math.random());
+            const theta = rNorm * 3 * Math.PI; 
+            const r = 0.2 + 2.5 * (theta / (3*Math.PI));
+            const x = -r * Math.cos(theta + 1); 
+            const y = -r * Math.sin(theta + 1);
+            data[i*2] = x + (Math.random()-0.5)*0.08;
+            data[i*2+1] = y + (Math.random()-0.5)*0.08;
+        }
+    }
+    return data;
+}
+
+// --- Painting ---
+function addSprayPoints(ex, ey) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = (ex - rect.left) * (canvas.width / rect.width);
+    const sy = (ey - rect.top) * (canvas.height / rect.height);
+    const [wx, wy] = screenToWorld(sx, sy);
+    const spread = 0.15;
+    for(let k=0; k<2; k++) {
+        const r = Math.sqrt(Math.random()) * spread;
+        const theta = Math.random() * 2 * Math.PI;
+        customTargetPoints.push(wx + r * Math.cos(theta));
+        customTargetPoints.push(wy + r * Math.sin(theta));
+    }
+}
+
+let isDrawing = false;
+canvas.addEventListener('mousedown', (e) => { if(useCustomTarget) { isDrawing=true; addSprayPoints(e.clientX, e.clientY); }});
+canvas.addEventListener('mousemove', (e) => { if(isDrawing) addSprayPoints(e.clientX, e.clientY); });
+window.addEventListener('mouseup', () => isDrawing = false);
+
+btnClearTarget.addEventListener('click', () => {
+    useCustomTarget = true;
+    customTargetPoints = [];
+    document.getElementById('draw-hint').innerText = "Mode: Custom. Draw on canvas.";
+});
+btnResetTarget.addEventListener('click', () => {
+    useCustomTarget = false;
+    document.getElementById('draw-hint').innerText = "Mode: Spiral Preset";
+});
+
+// --- Diffusion Schedule (VP) ---
+function getAlphaSigma(t) {
+    // Cosine Schedule: t=0 (Data), t=1 (Noise)
+    const arg = t * Math.PI / 2.0;
+    const alpha = Math.cos(arg); 
+    const sigma = Math.sin(arg);
+    return { a: alpha, s: sigma };
+}
+
+// --- Model Init ---
+function setMode(m) {
+    mode = m;
+    document.getElementById('mode-direct').classList.toggle('active', m==='direct');
+    document.getElementById('mode-energy').classList.toggle('active', m==='energy');
+    document.getElementById('desc-direct').style.display = m==='direct'?'block':'none';
+    document.getElementById('desc-energy').style.display = m==='energy'?'block':'none';
+    document.getElementById('controls-ebm').style.opacity = m==='energy'?1:0.5;
+    document.getElementById('inp-eps').disabled = (m!=='energy');
+    
+    document.documentElement.style.setProperty('--accent', m==='energy' ? '#6200ea' : '#00bfa5');
+    document.documentElement.style.setProperty('--accent-sec', m==='energy' ? '#00bfa5' : '#6200ea');
+    
+    initModel(); 
+}
+
+function initModel() {
+    const width = parseInt(inpWidth.value);
+    const lr = Math.pow(10, parseFloat(inpLr.value));
+    const outDim = (mode === 'direct') ? 2 : 1;
+    let config = [3, width, width, width, outDim];
+
+    model = new MLP(config);
+    optimizer = new Adam(model.params(), lr);
+    
+    stepCount = 0;
+    lossHistory = [];
+    lossCtx.clearRect(0,0, lossCanvas.width, lossCanvas.height);
+    updateStats(0, 0);
+}
+
+// --- Training Steps ---
+
+function trainStep() {
+    const x0_flat = sampleData(BATCH_SIZE);
+    
+    const x0 = new Tensor(BATCH_SIZE, 2, x0_flat);
+    const noise = Tensor.randn(BATCH_SIZE, 2);
+    const xt = new Tensor(BATCH_SIZE, 3); 
+    const weights = new Float32Array(BATCH_SIZE);
+    
+    for(let i=0; i<BATCH_SIZE; i++) {
+        // Sample t avoiding exact 0
+        const t = Math.random() * 0.999 + 0.001; 
+        const {a, s} = getAlphaSigma(t);
+        
+        const x0x = x0.data[i*2];   const x0y = x0.data[i*2+1];
+        const nx = noise.data[i*2]; const ny = noise.data[i*2+1];
+
+        const xtx = a * x0x + s * nx;
+        const xty = a * x0y + s * ny;
+
+        xt.data[i*3+0] = xtx;
+        xt.data[i*3+1] = xty;
+        xt.data[i*3+2] = t; 
+        
+        // Weight by sigma^2 (like DDPM predicting epsilon)
+        weights[i] = s * s; 
+    }
+
+    if (mode === 'direct') {
+        // Direct Score Matching
+        xt.requiresGrad = true; 
+        const pred = model.forward(xt);
+        
+        let lossSum = 0;
+        const gradOut = new Tensor(BATCH_SIZE, 2);
+        
+        // FIX: loop over BATCH_SIZE, not pred.length
+        for(let i=0; i<BATCH_SIZE; i++) {
+            // Loss = || sigma * pred + noise ||^2
+            const w = weights[i];
+            const sigma = Math.sqrt(w);
+            const nx = noise.data[i*2]; 
+            const ny = noise.data[i*2+1];
+            const px = pred.data[i*2];  
+            const py = pred.data[i*2+1];
+            
+            const termX = sigma * px + nx;
+            const termY = sigma * py + ny;
+            
+            lossSum += (termX*termX + termY*termY);
+            
+            gradOut.grad[i*2]   = (termX * sigma) / BATCH_SIZE;
+            gradOut.grad[i*2+1] = (termY * sigma) / BATCH_SIZE;
+        }
+
+        model.zeroGrads();
+        model.backward(gradOut); 
+        optimizer.step();
+        recordLoss(lossSum / (2*BATCH_SIZE));
+
+    } else {
+        // Energy FD Estimator
+        xt.requiresGrad = true; 
+        const E = model.forward(xt); 
+        model.zeroGrads(); 
+        
+        const dE = new Tensor(BATCH_SIZE, 1);
+        dE.grad.fill(1.0);
+        const dXt = model.backward(dE); 
+        
+        // r = -grad E + noise/sigma
+        const r = new Float32Array(BATCH_SIZE * 2);
+        for(let i=0; i<BATCH_SIZE; i++) {
+            const gx = dXt.grad[i*3+0]; const gy = dXt.grad[i*3+1]; 
+            const sigma = Math.sqrt(weights[i]);
+            
+            const sx = -gx; const sy = -gy;
+            const tx = -noise.data[i*2] / sigma;
+            const ty = -noise.data[i*2+1] / sigma;
+            
+            r[i*2+0] = sx - tx;
+            r[i*2+1] = sy - ty;
+        }
+        
+        const epsBase = Math.pow(10, parseFloat(inpEps.value));
+        const xt_pos = new Tensor(BATCH_SIZE, 3);
+        const xt_neg = new Tensor(BATCH_SIZE, 3);
+        
+        for(let i=0; i<BATCH_SIZE; i++) {
+            const rx = r[i*2+0];
+            const ry = r[i*2+1];
+            // Adaptive Epsilon step based on residual magnitude
+            const rMag = Math.sqrt(rx*rx + ry*ry) + 1e-6;
+            const eps = epsBase / Math.max(1.0, rMag); 
+            
+            xt_pos.data[i*3+0] = xt.data[i*3+0] + eps * rx;
+            xt_pos.data[i*3+1] = xt.data[i*3+1] + eps * ry;
+            xt_pos.data[i*3+2] = xt.data[i*3+2];
+
+            xt_neg.data[i*3+0] = xt.data[i*3+0] - eps * rx;
+            xt_neg.data[i*3+1] = xt.data[i*3+1] - eps * ry;
+            xt_neg.data[i*3+2] = xt.data[i*3+2];
+        }
+
+        model.zeroGrads(); 
+        
+        // FD Update: grad = - sigma^2 * (E+ - E-) / (2eps)
+        // Optimizer subtracts grad.
+        const baseScale = 1.0 / (2.0 * epsBase * BATCH_SIZE); 
+        
+        const dE_pos = new Tensor(BATCH_SIZE, 1);
+        const dE_neg = new Tensor(BATCH_SIZE, 1);
+        
+        for(let i=0; i<BATCH_SIZE; i++) {
+            const rx = r[i*2+0]; const ry = r[i*2+1];
+            const rMag = Math.sqrt(rx*rx + ry*ry) + 1e-6;
+            const eps = epsBase / Math.max(1.0, rMag);
+            // Re-scale for adaptive epsilon used above
+            const s = (1.0 / (2.0 * eps * BATCH_SIZE)) * weights[i]; 
+            
+            dE_pos.grad[i] = -s; 
+            dE_neg.grad[i] = +s; 
+        }
+        
+        model.forward(xt_pos); model.backward(dE_pos);
+        model.forward(xt_neg); model.backward(dE_neg);
+        optimizer.step();
+
+        // Weighted Residual Loss
+        let weightedLoss = 0;
+        for(let i=0; i<BATCH_SIZE; i++) {
+             const r2 = r[i*2]*r[i*2] + r[i*2+1]*r[i*2+1];
+             weightedLoss += weights[i] * r2;
+        }
+        recordLoss(weightedLoss / (2*BATCH_SIZE));
+    }
+}
+
+function recordLoss(l) {
+    stepCount++;
+    lossHistory.push(l);
+    if(lossHistory.length > 300) lossHistory.shift(); 
+    if(stepCount % 10 === 0) updateStats(stepCount, l);
+}
+
+function updateStats(step, loss) {
+    elStep.innerText = `Step: ${step} | Loss: ${loss.toFixed(5)}`;
+    drawLossChart();
+}
+
+function drawLossChart() {
+    const w = lossCanvas.width;
+    const h = lossCanvas.height;
+    lossCtx.clearRect(0, 0, w, h);
+    if(lossHistory.length < 2) return;
+
+    lossCtx.beginPath();
+    lossCtx.strokeStyle = '#adb5bd';
+    lossCtx.lineWidth = 1.5;
+    
+    let sorted = [...lossHistory].sort((a,b)=>a-b);
+    let max = sorted[Math.floor(sorted.length * 0.95)] * 1.2; 
+    if(max < 0.01) max = 0.01;
+
+    for(let i=0; i<lossHistory.length; i++) {
+        const x = (i / (lossHistory.length - 1)) * w;
+        const val = Math.min(lossHistory[i], max);
+        const y = h - (val / max) * h * 0.9; 
+        if(i===0) lossCtx.moveTo(x, y); else lossCtx.lineTo(x, y);
+    }
+    lossCtx.stroke();
+}
+
+// --- Inference ---
+
+function generateSamples() {
+    const n = parseInt(inpGenCount.value);
+    const steps = 60; 
+    const dt = 1.0 / steps;
+    
+    // Start at Noise (t=0.99) to avoid alpha=0 singularity at t=1
+    const t_start = 0.99; 
+
+    const currentX = new Float32Array(n * 2);
+    for(let i=0; i<n; i++) {
+        const noise = Tensor.randn(1,2).data;
+        currentX[i*2] = noise[0]; 
+        currentX[i*2+1] = noise[1];
+    }
+
+    const trajs = new Array(Math.min(n, 50)).fill(0).map(() => []); 
+
+    for(let s=0; s<steps; s++) {
+        const t = t_start - s * dt; 
+        if (t <= 0) break;
+        const t_next = Math.max(1e-4, t - dt); 
+
+        const {a: alpha_curr, s: sigma_curr} = getAlphaSigma(t);
+        const {a: alpha_next, s: sigma_next} = getAlphaSigma(t_next);
+        
+        const input = new Tensor(n, 3);
+        for(let i=0; i<n; i++) {
+            input.data[i*3+0] = currentX[i*2];
+            input.data[i*3+1] = currentX[i*2+1];
+            input.data[i*3+2] = t;
+        }
+
+        let scoresX, scoresY;
+        
+        if (mode === 'direct') {
+            const out = model.forward(input);
+            scoresX = new Float32Array(n);
+            scoresY = new Float32Array(n);
+            for(let i=0; i<n; i++) {
+                scoresX[i] = out.data[i*2];
+                scoresY[i] = out.data[i*2+1];
+            }
+        } else { 
+            input.requiresGrad = true; 
+            model.zeroGrads();
+            model.forward(input);
+            const dOut = new Tensor(n, 1);
+            dOut.grad.fill(1.0); 
+            const dIn = model.backward(dOut); 
+            
+            scoresX = new Float32Array(n);
+            scoresY = new Float32Array(n);
+            for(let i=0; i<n; i++) {
+                scoresX[i] = -dIn.grad[i*3+0]; 
+                scoresY[i] = -dIn.grad[i*3+1];
+            }
+        }
+
+        // Ancestral Sampler for VP-SDE
+        for(let i=0; i<n; i++) {
+            const sx = scoresX[i];
+            const sy = scoresY[i];
+            
+            // eps_pred = -sigma * score
+            const sigma2 = sigma_curr * sigma_curr;
+            
+            // Predicted x0
+            const predX0_x = (currentX[i*2] + sigma2 * sx) / alpha_curr;
+            const predX0_y = (currentX[i*2+1] + sigma2 * sy) / alpha_curr;
+
+            // Next mean (ODE Step)
+            const eps_pred_x = -sigma_curr * sx;
+            const eps_pred_y = -sigma_curr * sy;
+            
+            currentX[i*2]   = alpha_next * predX0_x + sigma_next * eps_pred_x;
+            currentX[i*2+1] = alpha_next * predX0_y + sigma_next * eps_pred_y;
+            
+            if (i < trajs.length) trajs[i].push({x: currentX[i*2], y: currentX[i*2+1]});
+        }
+    }
+
+    generatedSamples = [];
+    for(let i=0; i<n; i++) {
+        generatedSamples.push({
+            x: currentX[i*2], 
+            y: currentX[i*2+1],
+            traj: (i<trajs.length) ? trajs[i] : null 
+        });
+    }
+}
+
+// --- Visualization ---
+
+function drawViz() {
+    if(!vizMode) return;
+
+    const t = vizTime; 
+    const resolution = vizRes; // Use selected resolution
+    const step = CANVAS_SIZE / resolution;
+    
+    const inputs = new Tensor(resolution * resolution, 3);
+    
+    let idx = 0;
+    for(let py=0; py<resolution; py++) {
+        for(let px=0; px<resolution; px++) {
+            const sx = px * step + step/2;
+            const sy = py * step + step/2;
+            const [wx, wy] = screenToWorld(sx, sy);
+            
+            inputs.data[idx*3+0] = wx;
+            inputs.data[idx*3+1] = wy;
+            inputs.data[idx*3+2] = t; 
+            idx++;
+        }
+    }
+    
+    let values;
+    if(mode === 'energy') {
+        const out = model.forward(inputs);
+        values = out.data; // Raw Energy
+    } else {
+        const out = model.forward(inputs);
+        values = new Float32Array(resolution*resolution);
+        for(let i=0; i<resolution*resolution; i++) {
+            const vx = out.data[i*2];
+            const vy = out.data[i*2+1];
+            values[i] = -Math.sqrt(vx*vx + vy*vy); // Proxy for Energy
+        }
+    }
+
+    // Process values for Display
+    let displayValues = new Float32Array(values.length);
+    let minVal = Infinity, maxVal = -Infinity;
+
+    if (vizType === 'probability') {
+        // Probability Mode: P(x) = exp( -(E - E_min) )
+        // 1. Find Min Energy
+        let eMin = Infinity;
+        for(let v of values) if(v < eMin) eMin = v;
+        
+        // 2. Normalize and Exponentiate
+        for(let i=0; i<values.length; i++) {
+            // E - Emin >= 0. exp is in [0, 1]
+            displayValues[i] = Math.exp(-(values[i] - eMin)); 
+        }
+        // Bounds are naturally 0 to 1
+        minVal = 0; maxVal = 1;
+    } else {
+        // Raw Energy Mode
+        for(let i=0; i<values.length; i++) {
+            displayValues[i] = values[i];
+            if(values[i] < minVal) minVal = values[i];
+            if(values[i] > maxVal) maxVal = values[i];
+        }
+    }
+
+    const range = maxVal - minVal || 1; 
+
+    idx = 0;
+    for(let py=0; py<resolution; py++) {
+        for(let px=0; px<resolution; px++) {
+            const val = displayValues[idx++];
+            const nVal = (val - minVal) / range; 
+            
+            let r, b;
+            if (vizType === 'probability') {
+                // Prob: 0 (Low/Blue) -> 1 (High/Red)
+                r = Math.floor(nVal * 255);
+                b = Math.floor((1-nVal) * 255);
+            } else {
+                // Energy: Low (Blue) -> High (Red)
+                r = Math.floor(nVal * 255);
+                b = Math.floor((1-nVal) * 255);
+            }
+            
+            ctx.fillStyle = `rgba(${r}, 0, ${b}, 0.5)`; 
+            ctx.fillRect(px*step, py*step, step, step);
+        }
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (vizMode) drawViz();
+
+    // Grid
+    ctx.strokeStyle = '#f1f3f5';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=0; i<=CANVAS_SIZE; i+=VIEW_SCALE) {
+        ctx.moveTo(i, 0); ctx.lineTo(i, CANVAS_SIZE);
+        ctx.moveTo(0, i); ctx.lineTo(CANVAS_SIZE, i);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = '#dee2e6';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(CENTER_X, 0); ctx.lineTo(CENTER_X, CANVAS_SIZE);
+    ctx.moveTo(0, CENTER_Y); ctx.lineTo(CANVAS_SIZE, CENTER_Y);
+    ctx.stroke();
+
+    if (document.getElementById('chk-show-true').checked) {
+        ctx.fillStyle = '#ffcc00';
+        ctx.globalAlpha = 0.6;
+        let displayDataPoints;
+        if (useCustomTarget && customTargetPoints.length > 0) {
+            displayDataPoints = customTargetPoints;
+        } else {
+             displayDataPoints = sampleData(500); 
+        }
+        const numPointsToDraw = Math.min(displayDataPoints.length / 2, 2000); 
+        for(let i=0; i<numPointsToDraw; i++) {
+            const [sx, sy] = worldToScreen(displayDataPoints[i*2], displayDataPoints[i*2+1]);
+            ctx.beginPath(); ctx.arc(sx, sy, 2, 0, 2*Math.PI); ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+    }
+
+    for(let s of generatedSamples) {
+        if (s.traj) {
+            ctx.strokeStyle = '#ff8787';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.4;
+            ctx.beginPath();
+            for(let k=0; k<s.traj.length; k++) {
+                const [tx, ty] = worldToScreen(s.traj[k].x, s.traj[k].y);
+                if(k===0) ctx.moveTo(tx, ty);
+                else ctx.lineTo(tx, ty);
+            }
+            ctx.stroke();
+        }
+
+        if(!isNaN(s.x)) {
+            const [sx, sy] = worldToScreen(s.x, s.y);
+            ctx.fillStyle = '#40c057';
+            ctx.globalAlpha = 0.9;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 3, 0, 2*Math.PI);
+            ctx.fill();
+        }
+    }
+    ctx.globalAlpha = 1.0;
+
+    if(isTraining) {
+        for(let k=0; k<5; k++) trainStep(); 
+    }
+    
+    animationId = requestAnimationFrame(draw);
+}
+
+// --- UI Binding ---
+
+inpWidth.addEventListener('input', (e) => document.getElementById('val-width').innerText = e.target.value);
+inpLr.addEventListener('input', (e) => {
+    const v = Math.pow(10, parseFloat(e.target.value));
+    document.getElementById('val-lr').innerText = v.toExponential(1);
+    if(optimizer) optimizer.lr = v;
+});
+inpEps.addEventListener('input', (e) => document.getElementById('val-eps').innerText = Math.pow(10, parseFloat(e.target.value)).toExponential(2));
+inpGenCount.addEventListener('input', (e) => document.getElementById('val-gen-count').innerText = e.target.value);
+inpVizTime.addEventListener('input', (e) => {
+    vizTime = parseFloat(e.target.value); 
+    document.getElementById('val-viz-time').innerText = vizTime.toFixed(2);
+});
+inpVizRes.addEventListener('input', (e) => {
+    vizRes = parseInt(e.target.value);
+    document.getElementById('val-viz-res').innerText = vizRes;
+    if(vizMode) draw();
+});
+
+btnTrain.addEventListener('click', () => {
+    if(useCustomTarget && customTargetPoints.length < 20) { 
+        alert("Please draw more target points first (at least 20)!");
+        return;
+    }
+    isTraining = true;
+    btnTrain.disabled = true;
+    btnStop.disabled = false;
+    inpWidth.disabled = true;
+    document.getElementById('mode-direct').disabled = true;
+    document.getElementById('mode-energy').disabled = true;
+});
+
+btnStop.addEventListener('click', () => {
+    isTraining = false;
+    btnTrain.disabled = false;
+    btnStop.disabled = true;
+    inpWidth.disabled = false;
+    document.getElementById('mode-direct').disabled = false;
+    document.getElementById('mode-energy').disabled = false;
+});
+
+btnGen.addEventListener('click', generateSamples);
+btnClearGen.addEventListener('click', () => generatedSamples = []);
+btnReset.addEventListener('click', () => {
+    initModel();
+    generatedSamples = [];
+});
+btnToggleViz.addEventListener('click', () => {
+    vizMode = !vizMode;
+    btnToggleViz.innerText = vizMode ? "Hide Energy Viz" : "Show Energy Viz";
+    document.getElementById('viz-controls').classList.toggle('viz-hidden', !vizMode);
+    if (vizMode) { 
+        vizTime = parseFloat(inpVizTime.value); 
+        draw(); 
+    }
+});
+
+btnVizProb.addEventListener('click', () => {
+    vizType = 'probability';
+    btnVizProb.classList.add('active');
+    btnVizProb.style.background = 'white'; btnVizProb.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+    btnVizEnergy.classList.remove('active');
+    btnVizEnergy.style.background = 'transparent'; btnVizEnergy.style.boxShadow = 'none';
+    if(vizMode) draw();
+});
+
+btnVizEnergy.addEventListener('click', () => {
+    vizType = 'energy';
+    btnVizEnergy.classList.add('active');
+    btnVizEnergy.style.background = 'white'; btnVizEnergy.style.boxShadow = '0 1px 2px rgba(0,0,0,0.1)';
+    btnVizProb.classList.remove('active');
+    btnVizProb.style.background = 'transparent'; btnVizProb.style.boxShadow = 'none';
+    if(vizMode) draw();
+});
+
+// Init
+setMode('energy'); 
+draw(); 
+</script>
+</body>
+</html>
