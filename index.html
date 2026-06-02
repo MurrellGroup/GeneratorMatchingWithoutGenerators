@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generator Matching without Generators (rough draft)</title>
     
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script>
         window.MathJax = {
@@ -143,7 +142,7 @@
     </div>
 
     <section>
-        <h2>1. Preliminaries</h2>
+        <h2>Preliminaries</h2>
         <p>
             In generative modeling, you typically have a training dataset of samples from some "target" distribution, and you wish to train a model that can generate new samples from this distribution. These could be images, sequences of text, songs, proteins, etc, each with their own state space (continuous, discrete, manifold, or mixtures of these).
         <p> This is what Generator Matching (GM) lets you do. Like <a href="https://mlg.eng.cam.ac.uk/blog/2024/01/20/flow-matching.html">flow matching</a> (which GM generalizes), this is done by starting from an easy-to-sample-from "prior" distribution, and learning how to transform this into the target distribution. It does this through many small steps in what we call "time" (which we denote with $t$), starting at $t=0$ (the simple prior) and ending at $t=1$ (the target distribution).
@@ -169,7 +168,7 @@
     </section>
 
     <section>
-        <h2>2. The marginals of the process $p(x_t \mid t)$, and the conditional posterior distribution $p(z \mid x_t, t)$.</h2>
+        <h2>The marginals of the process $p(x_t \mid t)$, and the conditional posterior distribution $p(z \mid x_t, t)$.</h2>
 
         <p>Importantly, we can sample from $p(x_t \mid z, t)$, the conditional process at any $t$, by first sampling $z$, sampling $x_0$ from the prior, and then stepping through $p(x_{t+\Delta t} \mid x_t, z, t)$ for each step until $t$ is reached. A central distribution of interest is the <strong>marginal distribution</strong> of $x_t$ at each time $t$. If we have $n$ training data samples, and each $z$ has equal probability, then:
             $$p(x_t \mid t) = \frac{1}{n} \sum_{i=1}^n p(x_t \mid z_i, t)$$
@@ -180,7 +179,7 @@
     </section>
 
     <section>
-        <h2>3. A concrete example</h2>
+        <h2>A concrete example</h2>
 
         <p>As a working concrete example, we'll consider the case of standard <a href="https://arxiv.org/abs/2210.02747"> flow matching</a>, where the state space is continuous, $p(x_0)$ is a Gaussian distribution, and the conditional path is simply a straight line that points towards $x_1^z$, the training data point associated with $z$. In this case, $p(x_{t+\Delta t} \mid x_t, z, t)$ is just a point mass at $x_t + \frac{(x_1^z - x_t)\Delta t}{1-t}$.</p>
         
@@ -214,7 +213,7 @@
 
 
 
-        <h2>4. A “resample–$z$ process"</h2>
+        <h2>A “resample–$z$ process"</h2>
 
         <p>Stepping away from the concrete straight-line example and back to the general case, recall that we can use the conditional process to draw samples from the marginal distribution $p(x_t \mid t)$ by first sampling $z$ from $p(z)$, sampling $x_0$ from the prior, and then stepping through $p(x_{t+\Delta t} \mid x_t, z, t)$ for each step until $t$ is reached. Now consider a modified version of this that repeats the following:
         <blockquote>
@@ -270,14 +269,14 @@
         <div class="caption" id="simCaption">
             <span style="color:#d63384; font-weight:bold;">Red Example Path</span> leads towards <span style="color:#0056b3; font-weight:bold">Solid Blue Target</span>. <br/>
             <strong>Mode: Conditional Process:</strong> Moves according to the sampled $z$ for the entire path. <br/>
-            <strong>Mode: Resampled:</strong> Periodically it picks a new $z$ and changes direction. <br/>
+            <strong>Mode: Resampling:</strong> Periodically it picks a new $z$ and changes direction. <br/>
             <strong>Mode: Averaged:</strong> Moves in the average direction of all targets, weighted by the posterior $p(z|x,t)$. <br/>
             <em>Click to place the starting point of the example path.</em>
         </div>
     </div>
 
-    <section></section>
-    <h2>5. The infinite switching limit</h2>
+    <section>
+    <h2>The infinite switching limit</h2>
 
     <p>As seen above, the marginals $p(x_t \mid t)$ are the same for the conditional process (without $z$ resampling) and when repeatedly resampling $z$, even though the paths themselves look very different. Without resampling, the paths are straight lines from $x_0$ to $x_1$, and with slow resampling, the paths are more jagged, zig-zagging back and forth.</p>
     
@@ -315,7 +314,7 @@
     </section>
 
     <section>
-        <h2>6. Training</h2>
+        <h2>Training</h2>
         <p>So we need to build a model $f_\theta(t, x)$ that takes in $(t, x_t)$ and outputs the average step $\bar{u}_t(x_t)$. How do we train it?</p>
 
         <p>The key insight is that this is just a <strong>regression problem</strong>, and we already have everything we need to generate training data.</p>
@@ -360,8 +359,23 @@
     </section>
 
     <section>
-        <h2>7. Different state spaces and step types</h2>
-        <p>The beauty of the GM framework is that this "smooth average" works for <em>any</em> kind of stochastic process—not just deterministic drif-only flows. 
+        <h2>Dimensions.</h2>
+
+    <p>In the above, we avoided discussing the dimensionality of the state space. For our 'pure-drift' running example, the state is a vector in Euclidean space, and an infinitesimal step is a vector in the same space. Here, even though the state can have many continuous elements, it is straightforward to average over steps in this space, and to have a model output an 'average step', and no further comment about dimensionality is needed.</p>
+    
+    <p>But this is not the case in other spaces. Consider a sequence of discrete tokens, for example. A conditional process in this space has events that occur in continuous time and trigger changes in the sequence, and you train a model to learn the average rates of these events. But in the most general case, a single event on this space can turn any sequence into any other sequence, changing multiple tokens at once. This works in theory, but would require a neural network to output rates for $T^L-1$ events, where $T$ is the number of tokens and $L$ is the length of the sequence, which is infeasible.</p>
+
+    <p>To avoid this issue we can construct our conditional process such that events that cause discontinious changes to the state act only upon single elements of the state. When you additionally consider that events that occur stochastically in continuous time never occur at exactly the same time as each other, this means that any infintesimal step only allows a single element to change. Knowing that no two elements can simultaneously change restricts the space of 'neighbours' of the current state to 'all sequences that differ from the current one at only one element'.</p>
+
+    <p>Practically, this means that the model need only output $(T-1) \times L$ rates. If we additionally restrict our conditional process such that the rates for element $i$ of $x_t$ only depend on element $i$ of $x_1^z$ then this lets us consider the 'average step' separately for each element of the state space.</p>
+    
+    <p>So in the $z$-resampling process, while each newly resampled $z$ is a whole new sequence, we can consider the smooth average of infinitely fast switching separately for each element.</p>
+
+    </section>
+
+    <section>
+        <h2>Different state spaces and step types</h2>
+        <p>The beauty of the GM framework is that this "smooth average" works for <em>any</em> kind of stochastic process—not just deterministic drift-only flows.
         Using the $z$-resampling process as a guide, we can reason about what kind of object the average will be. Consider a number of steps (each switching to a new $z$) and ask: what is their cumulative effect <strong>in distribution</strong>? i.e. if we were to replace $n$ steps with a single step (but where the single step is aware of the sequence of $z$ values that was stepped through), what would the distribution of the state be at the end of the single step?</p>
         
         <p>You can represent any useful kind of "step" as some combination of drift (continuous deterministic changes), diffusion (continuous stochastic changes), and jumps (discontinuous changes). Here are four common examples, showing exactly what gets averaged in each.</p>
@@ -398,10 +412,10 @@
         <p>Many processes include stochasticity. Consider a step with both drift and Gaussian noise:
         $$ x_{t+\Delta t} = x_t + \mu_t(x_t\mid z)\,\Delta t + \sigma_t(x_t\mid z)\,\sqrt{\Delta t}\,\xi, \quad \xi \sim \mathcal{N}(0,I). $$
         </p>
-        <p>The drift terms average as before. For the noise, what matters is the <em>variance per unit time</em>: $\Sigma_t(x\mid z) = \sigma_t(x\mid z)\sigma_t(x\mid z)^\top$. The averaged quantities are:
-        $$ \bar{\mu}_t(x) = \sum_k p(z_k\mid x,t)\,\mu_t(x\mid z_k), \qquad \bar{\Sigma}_t(x) = \sum_k p(z_k\mid x,t)\,\Sigma_t(x\mid z_k). $$
+        <p>The drift terms average as before. For the noise, what matters is the <em>variance per unit time</em>. If the noise is isotropic, acting upon each element independently with a vector of per-element variances $\sigma_t(x\mid z)$, the averaged quantities are:
+        $$ \bar{\mu}_t(x) = \sum_k p(z_k\mid x,t)\,\mu_t(x\mid z_k), \qquad \bar{\sigma}^2_t(x) = \sum_k p(z_k\mid x,t)\,\sigma^2_t(x\mid z). $$
         </p>
-        <p><strong>Important:</strong> We average <em>variances</em>, not standard deviations. This is because when you rapidly switch between noise levels, the <a href="https://en.wikipedia.org/wiki/Bienaym%C3%A9%27s_identity">total variance accumulates additively</a>.</p>
+        <p><strong>Important:</strong> We average <em>variances</em> (not eg. standard deviations). This is because when you rapidly switch between noise levels, you accumulate the sum of the independant per-step Gaussian draws, and <a href="https://en.wikipedia.org/wiki/Sum_of_normally_distributed_random_variables">the sum of independent Gaussian variates is a Gaussian with their summed variance</a>.</p>
 
         <h3>Case III: Discrete states</h3>
         <div class="interactive-figure">
@@ -455,7 +469,7 @@
     </section>
 
     <section>
-        <h2>8. Sampling from a trained model</h2>
+        <h2>Sampling from a trained model</h2>
         <p>Once we've trained a model $f_\theta(t, x)$ to predict the posterior-averaged step, generating new samples is straightforward:</p>
         <ol>
             <li>Sample $x_0$ from the prior $p(x_0)$.</li>
@@ -468,7 +482,7 @@
     </section>
 
     <section>
-        <h2>9. The complete GM recipe</h2>
+        <h2>The complete GM recipe</h2>
         <p>Let's put everything together. Here's the full Generator Matching framework in plain terms:</p>
         
         <h3>Design phase</h3>
@@ -516,9 +530,9 @@
 
         <p>The discrete case is also instructive here. Take a simple unconditional CTMC, non-absorbing, with uniform rates between all characters. If condition this process to terminate at $x_1$, the conditional outgoing probability velocities for $x_t$ at $t$ can be obtained via the Doob $h$-transform, and if you train a model, with a Bregman divergence, against these probability velocities, you get a working discrete flow matching model. However the Doob $h$-transform is not generally affine, and so e.g. predicting $x_1$ with a cross-entropy loss will fail.</p>
 
-        <p>Diffusion models circumvent this by using a process that starts in a masked state, and unmasks directly to the $x_1$ state. [tbc]</p>
-
-        <p>Discrete flow matching conditional processes circumvent this by restricting the class of processes to those where the velocity is affine in $x$-prediction. [tbc]</p>
+        <p>Much of the discrete diffusion literature circumvents this by restricting themselves to processes that start in a masked state, and unmasks directly to the $x_1$ state, and <a href="https://arxiv.org/abs/2407.15595">Discrete Flow Matching</a> constrains the space of discrete processes to 'convex interpolants'. In both cases, $x_1$-prediction with cross-entropy loss is valid because an infintesimal step of the conditional process can be written as:
+            $$\Prob(x_{t+\Delta t} = j \mid x_t = i) \approx q_t(j\mid i, z)\,\Delta t \quad (j \neq i)$$
+        </p>
 
     </section>
 
@@ -974,14 +988,15 @@
             if (mode === 'resample') {
                 sim.mode = 'resample';
                 // Must display interval in the button text
+                btnToggleMode.textContent = "Mode: Resampling";
                 if (interval === 1000) {
                     btnToggleMode.textContent = "Mode: Conditional Proces";
                 } else if (interval === 100) {
-                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.1)";
+                    btnToggleMode.textContent = "Mode: Resampling (interval: 0.1)";
                 } else if (interval === 10) {
-                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.01)";
+                    btnToggleMode.textContent = "Mode: Resampling (interval: 0.01)";
                 } else if (interval === 1) {
-                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.001)";
+                    btnToggleMode.textContent = "Mode: Resampling (interval: 0.001)";
                 }
                 btnToggleMode.classList.remove('active');
                 // Keep controls visible; enable slider
@@ -1186,9 +1201,9 @@
             if (!sim.autoPlayActive) return;
             let label = '';
             switch (sim.autoStageIndex) {
-                case 0: label = 'Resampled, slow switching'; break;
-                case 1: label = 'Resampled, medium switching'; break;
-                case 2: label = 'Resampled, fast switching'; break;
+                case 0: label = 'Resampling, slow switching'; break;
+                case 1: label = 'Resampling, medium switching'; break;
+                case 2: label = 'Resampling, fast switching'; break;
                 case 3: label = 'Posterior averaged'; break;
             }
             if (!label) return;
