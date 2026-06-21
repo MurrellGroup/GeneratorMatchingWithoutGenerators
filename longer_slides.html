@@ -1744,12 +1744,16 @@
                         <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
                             <input type="checkbox" id="bbTrainShowDemo" checked> Step animation
                         </label>
+                        <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="bbTrainShowField" checked> Vector field
+                        </label>
                         <span id="bbTrainStats" style="font-size: 0.85rem; color: var(--text-muted); margin-left: auto;">steps: 0 &nbsp;|&nbsp; loss: —</span>
                     </div>
                     <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
                         <span style="color:#78909c; font-weight:bold;">Grey path</span> = bridge SDE to $x_t$ only &nbsp;|&nbsp;
                         <span style="color:#ffb74d; font-weight:bold;">Orange</span> = $x_1^z$ &nbsp;|&nbsp;
-                        <span style="color:#ef5350; font-weight:bold;">Red arrow</span> = $\hat x_1$
+                        <span style="color:#ef5350; font-weight:bold;">Red arrow</span> = $\hat x_1$ &nbsp;|&nbsp;
+                        faint red grid = learned drift $(\hat x_1 - x_t)/(1-t)$
                     </div>
                 </div>
             </div>
@@ -1768,10 +1772,15 @@
                         <button id="btnBbSampleOne" class="secondary">Sample path</button>
                         <button id="btnBbSampleBurst" class="secondary">Sample ×10</button>
                         <button id="btnBbSampleClear" class="secondary">Clear</button>
+                        <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="bbSampleShowField" checked> Vector field
+                        </label>
                         <span id="bbSampleStats" style="font-size: 0.85rem; color: var(--text-muted); margin-left: auto;">paths: 0 &nbsp;|&nbsp; training samples: —</span>
                     </div>
                     <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
-                        Coloured traces = SDE samples &nbsp;|&nbsp; dots at $t=1$ accumulate at the data edge
+                        Coloured traces = SDE samples &nbsp;|&nbsp;
+                        dots at $t=1$ accumulate at the data edge &nbsp;|&nbsp;
+                        faint red grid = learned drift
                     </div>
                 </div>
             </div>
@@ -2879,6 +2888,7 @@
             samples: [],
             lossHistory: [],
             trainSteps: 0,
+            fieldRev: 0,
             lossRecordEvery: 100,
             lossMcSamples: 256,
             maxSamples: 5000,
@@ -2897,6 +2907,7 @@
                 this.samples = [];
                 this.lossHistory = [];
                 this.trainSteps = 0;
+                this.fieldRev++;
                 this.recordLossCheckpoint(true);
             },
 
@@ -2972,6 +2983,7 @@
                 const loss = (dHat - dTarget) ** 2;
                 this.addSample(t, xt, dTarget);
                 this.trainSteps++;
+                this.fieldRev++;
                 this.recordLossCheckpoint();
                 const x1Hat = xt + dHat;
                 return { x0, x1, t, xt, x1Hat, dTarget, dHat, loss, sdePts: sim.pts };
@@ -2979,6 +2991,65 @@
         };
         bbKernelRegressor.init();
         bbKernelRegressor.recordLossCheckpoint(true);
+
+        const BB_VF_T = 24;
+        const BB_VF_Y = 16;
+        const BB_VF_ARROW_LEN = 18;
+        const BB_VF_DT_REF = 0.035;
+
+        /** Drift (x̂₁ − x)/(1−t) arrow segment for bridge SDE vector field. */
+        function bbDriftArrowSeg(t, y, xFn = fmX) {
+            const t0 = Math.min(Math.max(t, 0), 1 - 1e-5);
+            const dt = Math.min(BB_VF_DT_REF, 1 - 1e-5 - t0);
+            if (dt < 1e-5) return null;
+            const px0 = xFn(t0);
+            const py0 = y;
+            const omt = 1 - t0;
+            const x1h = bbKernelRegressor.predictX1(t0, y);
+            const py1 = y + (x1h - y) / omt * dt;
+            const px1 = xFn(t0 + dt);
+            const dx = px1 - px0;
+            const dy = py1 - py0;
+            const len = Math.hypot(dx, dy);
+            if (len < 0.25) return null;
+            if (len > BB_VF_ARROW_LEN) {
+                const s = BB_VF_ARROW_LEN / len;
+                return { px0, py0, px1: px0 + dx * s, py1: py0 + dy * s };
+            }
+            return { px0, py0, px1, py1 };
+        }
+
+        function renderBbDriftField(arrowPool, showField) {
+            if (!arrowPool) return;
+            if (!showField) {
+                arrowPool.forEach(ar => {
+                    ar.line.setAttribute('visibility', 'hidden');
+                    ar.head.setAttribute('visibility', 'hidden');
+                });
+                return;
+            }
+            let ai = 0;
+            for (let ti = 0; ti < BB_VF_T; ti++) {
+                const t = 0.04 + (ti / Math.max(1, BB_VF_T - 1)) * 0.955;
+                for (let yi = 0; yi < BB_VF_Y; yi++) {
+                    const y = FM_VIZ.Y_TOP + (yi / (BB_VF_Y - 1)) * (FM_VIZ.Y_BOT - FM_VIZ.Y_TOP);
+                    const seg = bbDriftArrowSeg(t, y);
+                    const ar = arrowPool[ai++];
+                    if (!seg) {
+                        ar.line.setAttribute('visibility', 'hidden');
+                        ar.head.setAttribute('visibility', 'hidden');
+                        continue;
+                    }
+                    updateSvgArrow(ar, seg.px0, seg.py0, seg.px1, seg.py1, {
+                        color: '#ef5350', lineWidth: 1, alpha: 0.4, headlen: 5
+                    });
+                }
+            }
+            for (; ai < arrowPool.length; ai++) {
+                arrowPool[ai].line.setAttribute('visibility', 'hidden');
+                arrowPool[ai].head.setAttribute('visibility', 'hidden');
+            }
+        }
 
         // =========================================
         // AUDIO: Soft click on direction switch (Viz 2)
@@ -5978,6 +6049,7 @@
         const bbTrainSpeedVal = document.getElementById('bbTrainSpeedVal');
         const bbTrainStatsEl = document.getElementById('bbTrainStats');
         const bbTrainShowDemoCb = document.getElementById('bbTrainShowDemo');
+        const bbTrainShowFieldCb = document.getElementById('bbTrainShowField');
 
         if (bbTrainVizSvg) {
             const BTR_PHASE_DUR = { pick: 0.28, sde_to_t: 0.85, predict: 0.4, error: 0.35, update: 0.3, hold: 0.75 };
@@ -5990,11 +6062,13 @@
                 running: false,
                 speed: 10,
                 showDemo: true,
+                showField: true,
                 phase: 'pick',
                 phaseT: 0,
                 stepCount: 0,
                 demo: null,
                 pendingStep: null,
+                fieldDirty: true,
                 lastFrame: performance.now()
             };
             const btrdom = {};
@@ -6036,6 +6110,15 @@
                 btrdom.dataMixtureHump = svgEl('path', { class: 'viz-data-hump' });
                 btrdom.dataHumpG.appendChild(btrdom.dataMixtureHump);
                 bbTrainVizSvg.appendChild(btrdom.dataHumpG);
+
+                btrdom.modelFieldG = svgEl('g', { class: 'bb-drift-field' });
+                btrdom.velArrows = [];
+                for (let i = 0; i < BB_VF_T * BB_VF_Y; i++) {
+                    const ar = makeSvgArrow();
+                    btrdom.modelFieldG.appendChild(ar.g);
+                    btrdom.velArrows.push(ar);
+                }
+                bbTrainVizSvg.appendChild(btrdom.modelFieldG);
 
                 btrdom.trainDotsG = svgEl('g');
                 btrdom.trainDotPool = [];
@@ -6096,6 +6179,7 @@
             function bbStartNewDemo() {
                 bbDemoFromStep(bbKernelRegressor.trainStep());
                 btr.stepCount++;
+                btr.fieldDirty = true;
             }
 
             function bbTrainDemoPhaseRate() {
@@ -6181,6 +6265,7 @@
                     bbKernelRegressor.trainStep();
                     btr.stepCount++;
                 }
+                btr.fieldDirty = true;
             }
 
             function renderBbTrainViz() {
@@ -6220,6 +6305,10 @@
                     });
                 } else {
                     btrdom.trainDotPool.forEach(c => c.setAttribute('visibility', 'hidden'));
+                }
+
+                if (btr.fieldDirty) {
+                    renderBbDriftField(btrdom.velArrows, btr.showField);
                 }
 
                 const hideDemo = () => {
@@ -6360,7 +6449,10 @@
                     else tickBbTrainFast();
                 }
                 renderBbLossPlot();
-                if (btr.showDemo || btr.running) renderBbTrainViz();
+                if (btr.showDemo || btr.fieldDirty) {
+                    renderBbTrainViz();
+                    if (btr.fieldDirty) btr.fieldDirty = false;
+                }
             }
 
             buildBbTrainSvg();
@@ -6378,6 +6470,7 @@
                 btnBbTrainReset.addEventListener('click', () => {
                     bbKernelRegressor.reset();
                     btr.stepCount = 0;
+                    btr.fieldDirty = true;
                     bbStartNewDemo();
                 });
             }
@@ -6391,11 +6484,19 @@
                 bbTrainShowDemoCb.addEventListener('change', () => {
                     btr.showDemo = bbTrainShowDemoCb.checked;
                     if (btr.showDemo && !btr.demo) bbStartNewDemo();
+                    btr.fieldDirty = true;
+                    renderBbTrainViz();
+                });
+            }
+            if (bbTrainShowFieldCb) {
+                bbTrainShowFieldCb.addEventListener('change', () => {
+                    btr.showField = bbTrainShowFieldCb.checked;
+                    btr.fieldDirty = true;
                     renderBbTrainViz();
                 });
             }
 
-            registerVizRefresh(() => { renderBbTrainViz(); renderBbLossPlot(); });
+            registerVizRefresh(() => { btr.fieldDirty = true; renderBbTrainViz(); renderBbLossPlot(); });
             SlideAnim.register(
                 [slideIndexOf(bbTrainVizSvg), slideIndexOf(document.getElementById('bbSampleVizSvg'))],
                 makeSlideRafLoop(loopBbTrain, { onStart: () => { btr.lastFrame = performance.now(); } })
@@ -6410,6 +6511,7 @@
         const btnBbSampleBurst = document.getElementById('btnBbSampleBurst');
         const btnBbSampleClear = document.getElementById('btnBbSampleClear');
         const bbSampleStatsEl = document.getElementById('bbSampleStats');
+        const bbSampleShowFieldCb = document.getElementById('bbSampleShowField');
 
         if (bbSampleVizSvg) {
             const BBS_N_STEPS = 220;
@@ -6422,6 +6524,9 @@
             const bbs = {
                 paths: [],
                 endpoints: [],
+                showField: true,
+                fieldDirty: true,
+                lastFieldRev: -1,
                 lastFrame: performance.now()
             };
             const bbsdom = {};
@@ -6480,6 +6585,15 @@
                 bbsdom.dataMixtureHump = svgEl('path', { class: 'viz-data-hump' });
                 bbSampleVizSvg.appendChild(bbsdom.dataMixtureHump);
 
+                bbsdom.modelFieldG = svgEl('g', { class: 'bb-drift-field' });
+                bbsdom.velArrows = [];
+                for (let i = 0; i < BB_VF_T * BB_VF_Y; i++) {
+                    const ar = makeSvgArrow();
+                    bbsdom.modelFieldG.appendChild(ar.g);
+                    bbsdom.velArrows.push(ar);
+                }
+                bbSampleVizSvg.appendChild(bbsdom.modelFieldG);
+
                 bbsdom.trailsG = svgEl('g');
                 bbsdom.trailPool = [];
                 for (let i = 0; i < BBS_MAX_PATHS; i++) {
@@ -6529,12 +6643,21 @@
                 styleFm1DLayout(bbsdom, th);
 
                 const nTrain = bbKernelRegressor.samples.length;
+                if (bbKernelRegressor.fieldRev !== bbs.lastFieldRev) {
+                    bbs.fieldDirty = true;
+                    bbs.lastFieldRev = bbKernelRegressor.fieldRev;
+                }
                 if (nTrain < 5) {
                     bbsdom.hintLabel.setAttribute('fill', '#ffb74d');
                     bbsdom.hintLabel.textContent = 'Train on previous slide first (▶)';
                 } else {
                     bbsdom.hintLabel.setAttribute('fill', th.textMuted);
                     bbsdom.hintLabel.textContent = `σ = ${BB_BRIDGE_SIGMA} · ${nTrain} training samples · SDE paths`;
+                }
+
+                if (bbs.fieldDirty) {
+                    renderBbDriftField(bbsdom.velArrows, bbs.showField && nTrain >= 5);
+                    bbs.fieldDirty = false;
                 }
 
                 bbsdom.trailPool.forEach((pathEl, i) => {
@@ -6595,8 +6718,15 @@
             if (btnBbSampleOne) btnBbSampleOne.addEventListener('click', addBbSamplePath);
             if (btnBbSampleBurst) btnBbSampleBurst.addEventListener('click', () => { for (let i = 0; i < 10; i++) addBbSamplePath(); });
             if (btnBbSampleClear) btnBbSampleClear.addEventListener('click', () => { bbs.paths = []; bbs.endpoints = []; });
+            if (bbSampleShowFieldCb) {
+                bbSampleShowFieldCb.addEventListener('change', () => {
+                    bbs.showField = bbSampleShowFieldCb.checked;
+                    bbs.fieldDirty = true;
+                    renderBbSampleViz();
+                });
+            }
 
-            registerVizRefresh(renderBbSampleViz);
+            registerVizRefresh(() => { bbs.fieldDirty = true; renderBbSampleViz(); });
             SlideAnim.register(
                 [slideIndexOf(document.getElementById('bbTrainVizSvg')), slideIndexOf(bbSampleVizSvg)],
                 makeSlideRafLoop(loopBbSample, { onStart: () => { bbs.lastFrame = performance.now(); } })
