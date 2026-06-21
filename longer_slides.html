@@ -243,20 +243,10 @@
             padding: 0.75rem 1rem;
         }
 
-        .interactive-figure--wide canvas {
+        .interactive-figure--wide .viz-svg--wide {
             width: 100%;
             max-width: 100%;
             margin: 0 auto;
-        }
-
-        canvas {
-            display: block;
-            margin: 10px auto;
-            background: var(--viz-canvas-bg, #0a0a1a);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            cursor: crosshair;
-            max-width: 100%;
         }
 
         .marginal-svg,
@@ -747,7 +737,7 @@
                 <h2>Preliminaries: Sample Growth Curves</h2>
                 <p style="font-size: 1.1rem; margin-bottom: 0.75rem;">20 simulated mice (10 female, 10 male), each stepped 200 times from weaning to adulthood. <strong>Hover</strong> to probe $p(x_t \mid z, t)$ and $p(z \mid x_t, t)$.</p>
                 <div class="interactive-figure" style="padding: 1rem;">
-                    <canvas id="mouseStaticCanvas" width="720" height="380"></canvas>
+                    <svg id="mouseStaticSvg" class="viz-svg" viewBox="0 0 720 380" role="img" aria-label="Mouse weight trajectories"></svg>
                     <div class="caption">
                         <span style="color:#ef5350; font-weight:bold;">Red</span> = female (target 22&nbsp;g) &nbsp;|&nbsp;
                         <span style="color:#42a5f5; font-weight:bold;">Blue</span> = male (target 28&nbsp;g) &nbsp;|&nbsp;
@@ -820,7 +810,7 @@
                 <h2>Preliminaries: Subscription Trajectories</h2>
                 <p style="font-size: 1.05rem; margin-bottom: 0.5rem;">24 simulated users (8 per type) on 27 tracks. <strong>Hover</strong> a track at time $t$ to see $p(x_t \mid z, t)$ and $p(z \mid x_t, t)$.</p>
                 <div class="interactive-figure interactive-figure--wide">
-                    <canvas id="aiDiscreteCanvas" width="1120" height="520"></canvas>
+                    <svg id="aiDiscreteSvg" class="viz-svg viz-svg--wide" viewBox="0 0 1120 520" role="img" aria-label="AI subscription trajectories"></svg>
                     <div class="caption">
                         <span style="color:#81c784; font-weight:bold;">Green</span> = freebie &nbsp;|&nbsp;
                         <span style="color:#42a5f5; font-weight:bold;">Blue</span> = SWE &nbsp;|&nbsp;
@@ -954,7 +944,7 @@
                 <h2>Interactive: The Posterior $p(z \mid x_t, t)$</h2>
                 <div class="interactive-figure">
                     <h4>Move your cursor to control $t$ (horizontal) and $x_t$ (vertical)</h4>
-                    <canvas id="posteriorCanvas" width="600" height="450"></canvas>
+                    <svg id="posteriorSvg" class="viz-svg" viewBox="0 0 600 450" role="img" aria-label="Posterior field visualization"></svg>
                     
                     <div class="controls">
                         <div style="border-left:1px solid var(--border-color); padding-left:10px; margin-left:10px;">
@@ -1039,7 +1029,7 @@
                 <h2>Interactive: Resampling in Action</h2>
                 <div class="interactive-figure">
                     <h4>Watch paths change as resampling interval decreases</h4>
-                    <canvas id="simCanvas" width="800" height="400"></canvas>
+                    <svg id="simSvg" class="viz-svg viz-svg--sim" viewBox="0 0 800 400" role="img" aria-label="Resampling simulation"></svg>
                     
                     <div class="controls sim-controls">
                         <button id="btnAutoPlay" class="secondary" title="Play full sequence">▶</button>
@@ -1109,7 +1099,7 @@
                 <h2>Interactive: Posterior-Averaged Velocity</h2>
                 <div class="interactive-figure">
                     <h4>The red arrow shows $\bar{u}_t(x)$ pointing to the weighted average $x_1$</h4>
-                    <canvas id="posteriorCanvas3" width="600" height="450"></canvas>
+                    <svg id="posteriorSvg3" class="viz-svg" viewBox="0 0 600 450" role="img" aria-label="Posterior averaged velocity"></svg>
                     
                     <div class="controls">
                         <div style="border-left:1px solid var(--border-color); padding-left:10px; margin-left:10px;">
@@ -1625,17 +1615,9 @@
             return Math.min(1, Math.max(0, a * scale));
         }
 
-        function vizClearCanvas(ctx, canvas) {
-            const th = getVizTheme();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = th.canvasBg;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-
         function applyVizSettingsToDOM() {
             const th = getVizTheme();
             document.documentElement.style.setProperty('--viz-canvas-bg', th.canvasBg);
-            document.querySelectorAll('canvas').forEach(c => { c.style.background = th.canvasBg; });
             document.querySelectorAll('.viz-svg, .marginal-svg').forEach(s => { s.style.background = th.canvasBg; });
         }
 
@@ -1644,6 +1626,109 @@
             const el = document.createElementNS(SVG_NS, tag);
             for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
             return el;
+        }
+
+        function svgPointer(svg, clientX, clientY, vbW, vbH) {
+            const r = svg.getBoundingClientRect();
+            return {
+                x: (clientX - r.left) * (vbW / r.width),
+                y: (clientY - r.top) * (vbH / r.height)
+            };
+        }
+
+        function verticalGaussianHumpD(height, meanY, sigmaY, maxWidth) {
+            let d = 'M 0 0';
+            for (let y = 0; y <= height; y += 2) {
+                const pdf = Math.exp(-((y - meanY) ** 2) / (2 * sigmaY * sigmaY));
+                d += ` L ${(maxWidth * pdf).toFixed(1)} ${y}`;
+            }
+            d += ` L 0 ${height} Z`;
+            return d;
+        }
+
+        function horizontalGaussianHumpD(xBar, yTop, yBottom, meanY, sigmaY, maxWidth) {
+            let d = `M ${xBar} ${yTop}`;
+            for (let y = yTop; y <= yBottom; y += 2) {
+                const pdf = Math.exp(-((y - meanY) ** 2) / (2 * sigmaY * sigmaY));
+                d += ` L ${(xBar + maxWidth * pdf).toFixed(1)} ${y}`;
+            }
+            d += ` L ${xBar} ${yBottom} Z`;
+            return d;
+        }
+
+        function vizWorldlineStroke(w, lightOffset = 0.05) {
+            if (VizSettings.bgMode === 'light') {
+                return `rgba(0, 0, 0, ${vizAlpha(w * 0.35 + lightOffset, 'hump')})`;
+            }
+            return `rgba(255, 255, 255, ${vizAlpha(w + 0.025, 'hump')})`;
+        }
+
+        function makeSvgArrow() {
+            const g = svgEl('g', { class: 'viz-arrow' });
+            const line = svgEl('path', {
+                fill: 'none',
+                'shape-rendering': 'geometricPrecision',
+                'vector-effect': 'non-scaling-stroke',
+                'stroke-linecap': 'round'
+            });
+            const head = svgEl('path', { 'shape-rendering': 'geometricPrecision' });
+            g.appendChild(line);
+            g.appendChild(head);
+            return { g, line, head };
+        }
+
+        function updateSvgArrow(arrow, fromX, fromY, toX, toY, { color, lineWidth = 2, alpha = 1, headlen = 10, kind = 'trace' } = {}) {
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const len = Math.hypot(dx, dy);
+            if (len < 1) {
+                arrow.line.setAttribute('visibility', 'hidden');
+                arrow.head.setAttribute('visibility', 'hidden');
+                return;
+            }
+            const angle = Math.atan2(dy, dx);
+            const op = vizAlpha(alpha, kind);
+            arrow.line.setAttribute('d', `M ${fromX} ${fromY} L ${toX} ${toY}`);
+            arrow.line.setAttribute('stroke', color);
+            arrow.line.setAttribute('stroke-width', lineWidth);
+            arrow.line.setAttribute('stroke-opacity', op);
+            arrow.line.setAttribute('visibility', 'visible');
+            const hx1 = toX - headlen * Math.cos(angle - Math.PI / 6);
+            const hy1 = toY - headlen * Math.sin(angle - Math.PI / 6);
+            const hx2 = toX - headlen * Math.cos(angle + Math.PI / 6);
+            const hy2 = toY - headlen * Math.sin(angle + Math.PI / 6);
+            arrow.head.setAttribute('d', `M ${toX} ${toY} L ${hx1} ${hy1} L ${hx2} ${hy2} Z`);
+            arrow.head.setAttribute('fill', color);
+            arrow.head.setAttribute('fill-opacity', op);
+            arrow.head.setAttribute('visibility', 'visible');
+        }
+
+        function setSvgTextWithSubscripts(textEl, centerX, y, segments, mainSize, subSize, fill) {
+            textEl.replaceChildren();
+            textEl.setAttribute('x', centerX);
+            textEl.setAttribute('y', y);
+            textEl.setAttribute('text-anchor', 'middle');
+            if (fill) textEl.setAttribute('fill', fill);
+            let xOff = -segments.reduce((sum, seg) =>
+                sum + seg.text.length * (seg.sub ? subSize : mainSize) * 0.55, 0) / 2;
+            let prevSub = false;
+            segments.forEach((seg, i) => {
+                const tspan = svgEl('tspan', { 'font-size': seg.sub ? subSize : mainSize });
+                tspan.setAttribute('x', centerX + xOff);
+                if (i > 0) {
+                    if (seg.sub && !prevSub) {
+                        tspan.setAttribute('dy', Math.round(mainSize * 0.28));
+                    } else if (!seg.sub && prevSub) {
+                        tspan.setAttribute('dy', -Math.round(mainSize * 0.28));
+                    } else {
+                        tspan.setAttribute('dy', 0);
+                    }
+                }
+                tspan.textContent = seg.text;
+                textEl.appendChild(tspan);
+                xOff += seg.text.length * (seg.sub ? subSize : mainSize) * 0.55;
+                prevSub = seg.sub;
+            });
         }
 
         function snapParticleAtT1(p, mode, targets, center, sigma) {
@@ -1855,72 +1940,6 @@
             return expW.map(w => w / sumExp);
         }
 
-        // Draw a vertical Gaussian "hump" along the left edge (x from 0 toward right),
-        // hinting that mass "comes from the left" of the y-axis.
-        function drawVerticalGaussianHump(ctx, height, meanY, sigmaY, maxWidth, color) {
-            const th = getVizTheme();
-            const humpColor = color || th.humpGray;
-            ctx.save();
-            ctx.fillStyle = humpColor;
-            ctx.globalAlpha = vizAlpha(0.15, 'hump');
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            for (let y = 0; y <= height; y += 2) {
-                const pdf = Math.exp(-((y - meanY) * (y - meanY)) / (2 * sigmaY * sigmaY));
-                const x = Math.min(maxWidth, maxWidth * pdf);
-                ctx.lineTo(x, y);
-            }
-            ctx.lineTo(0, height);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        }
-
-        function drawArrow(ctx, fromX, fromY, toX, toY, color) {
-            const headlen = 10; 
-            const dx = toX - fromX;
-            const dy = toY - fromY;
-            const angle = Math.atan2(dy, dx);
-            
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-            ctx.lineWidth = 3;
-            
-            ctx.beginPath();
-            ctx.moveTo(fromX, fromY);
-            ctx.lineTo(toX, toY);
-            ctx.stroke();
-            
-            ctx.beginPath();
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
-            ctx.fill();
-        }
-
-        // Styled thin arrow (for faint hero arrow in Viz 2)
-        function drawArrowStyled(ctx, fromX, fromY, toX, toY, color, lineWidth, alpha) {
-            const headlen = 8;
-            const dx = toX - fromX;
-            const dy = toY - fromY;
-            const angle = Math.atan2(dy, dx);
-            ctx.save();
-            ctx.globalAlpha = vizAlpha(alpha, 'trace');
-            ctx.strokeStyle = color;
-            ctx.fillStyle = color;
-            ctx.lineWidth = lineWidth;
-            ctx.beginPath();
-            ctx.moveTo(fromX, fromY);
-            ctx.lineTo(toX, toY);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
-            ctx.fill();
-            ctx.restore();
-        }
-
         // =========================================
         // AUDIO: Soft click on direction switch (Viz 2)
         // =========================================
@@ -1957,10 +1976,10 @@
         // =========================================
         // VIZ 1: POSTERIOR FIELD
         // =========================================
-        const cvs1 = document.getElementById('posteriorCanvas');
-        const ctx1 = cvs1.getContext('2d');
+        const posteriorSvg = document.getElementById('posteriorSvg');
         const inputN = document.getElementById('inputN');
         const btnResampleData = document.getElementById('btnResampleData');
+        const V1_W = 600, V1_H = 450;
 
         let v1 = {
             stateY: 100,
@@ -1969,6 +1988,50 @@
             animId: null,
             showArrow: false
         };
+
+        const v1dom = {};
+
+        function buildV1Svg() {
+            posteriorSvg.replaceChildren();
+            v1dom.priorHump = svgEl('path', { class: 'viz-prior-hump' });
+            posteriorSvg.appendChild(v1dom.priorHump);
+
+            v1dom.priorLabel = svgEl('text', { x: 2, y: 20, 'font-size': 12 });
+            v1dom.dataLabel = svgEl('text', { x: V1_W - 50, y: 20, 'font-size': 12 });
+            v1dom.tLabel = svgEl('text', { x: V1_W / 2, y: 20, 'text-anchor': 'middle', 'font-size': 12 });
+            posteriorSvg.appendChild(v1dom.priorLabel);
+            posteriorSvg.appendChild(v1dom.dataLabel);
+            posteriorSvg.appendChild(v1dom.tLabel);
+
+            v1dom.worldlinesG = svgEl('g', { class: 'viz-worldlines' });
+            v1dom.worldlinePaths = [];
+            for (let i = 0; i < 100; i++) {
+                const p = svgEl('path', {
+                    class: 'viz-trail',
+                    fill: 'none',
+                    'stroke-linecap': 'round',
+                    'stroke-linejoin': 'round',
+                    'shape-rendering': 'geometricPrecision',
+                    'vector-effect': 'non-scaling-stroke',
+                    visibility: 'hidden'
+                });
+                v1dom.worldlinesG.appendChild(p);
+                v1dom.worldlinePaths.push(p);
+            }
+            posteriorSvg.appendChild(v1dom.worldlinesG);
+
+            v1dom.targetsG = svgEl('g', { class: 'viz-targets' });
+            v1dom.targetCircles = [];
+            for (let i = 0; i < 100; i++) {
+                const c = svgEl('circle', { r: 5, visibility: 'hidden' });
+                v1dom.targetsG.appendChild(c);
+                v1dom.targetCircles.push(c);
+            }
+            posteriorSvg.appendChild(v1dom.targetsG);
+
+            v1dom.cursor = svgEl('circle', { r: 8, fill: '#81c784', class: 'viz-dot' });
+            posteriorSvg.appendChild(v1dom.cursor);
+        }
 
         function initV1Data() {
             const n = parseInt(inputN.value) || 4;
@@ -1983,18 +2046,17 @@
             }
         }
 
-        // Inputs
-        cvs1.addEventListener('mousemove', e => {
-            const r = cvs1.getBoundingClientRect();
-            v1.t = Math.min(Math.max((e.clientX - r.left) / cvs1.width, 0), 1);
-            v1.stateY = e.clientY - r.top;
-        });
-        cvs1.addEventListener('touchmove', e => {
+        function setV1FromEvent(clientX, clientY) {
+            const pt = svgPointer(posteriorSvg, clientX, clientY, V1_W, V1_H);
+            v1.t = Math.min(Math.max(pt.x / V1_W, 0), 1);
+            v1.stateY = pt.y;
+        }
+
+        posteriorSvg.addEventListener('mousemove', e => setV1FromEvent(e.clientX, e.clientY));
+        posteriorSvg.addEventListener('touchmove', e => {
             e.preventDefault();
-            const r = cvs1.getBoundingClientRect();
-            v1.t = Math.min(Math.max((e.touches[0].clientX - r.left) / cvs1.width, 0), 1);
-            v1.stateY = e.touches[0].clientY - r.top;
-        }, {passive:false});
+            setV1FromEvent(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
 
         btnResampleData.addEventListener('click', initV1Data);
 
@@ -2004,79 +2066,70 @@
         }
 
         function drawV1() {
-            vizClearCanvas(ctx1, cvs1);
             const th = getVizTheme();
-
             const priorMeanY = PRIOR_CENTER_1.y;
             const priorSigmaY = PRIOR_SIGMA_1;
-            drawVerticalGaussianHump(ctx1, cvs1.height, priorMeanY, priorSigmaY, 60, th.humpGray);
-            ctx1.fillStyle = th.text;
-            ctx1.fillText("Prior (t=0)", 2, 20);
-            ctx1.fillText("Data (t=1)", cvs1.width - 50, 20);
 
-            // Current time position on x-axis
-            const tPosX = v1.t * cvs1.width;
+            v1dom.priorHump.setAttribute('d', verticalGaussianHumpD(V1_H, priorMeanY, priorSigmaY, 60));
+            v1dom.priorHump.setAttribute('fill', th.humpGray);
+            v1dom.priorHump.setAttribute('fill-opacity', vizAlpha(0.15, 'hump'));
 
-            // Compute 1D posterior weights
+            v1dom.priorLabel.setAttribute('fill', th.text);
+            v1dom.priorLabel.textContent = 'Prior (t=0)';
+            v1dom.dataLabel.setAttribute('fill', th.text);
+            v1dom.dataLabel.textContent = 'Data (t=1)';
+            v1dom.tLabel.setAttribute('fill', th.textBright);
+            v1dom.tLabel.textContent = `t=${v1.t.toFixed(2)}`;
+
+            const tPosX = v1.t * V1_W;
             const weights = getPosteriorWeights1D(v1.stateY, v1.targetsY, v1.t, priorMeanY, priorSigmaY);
-
-            // Draw blue worldlines: (x=1,z) -> (t,v1.stateY) -> (x=0,x0)
             const t_safe = Math.min(v1.t, 0.9999);
             const one_minus_t = 1 - t_safe;
+
             v1.targetsY.forEach((zy, i) => {
                 const w = weights[i];
-                if (w <= 0.005) return;
-                const y0 = (v1.stateY - t_safe * zy) / one_minus_t;
-                ctx1.beginPath();
-                ctx1.moveTo(cvs1.width - 6, zy);
-                ctx1.lineTo(tPosX, v1.stateY);
-                ctx1.lineTo(6, y0);
-                ctx1.strokeStyle = `rgba(255, 255, 255, ${vizAlpha(w + 0.025, 'hump')})`;
-                if (VizSettings.bgMode === 'light') {
-                    ctx1.strokeStyle = `rgba(0, 0, 0, ${vizAlpha(w * 0.35 + 0.05, 'hump')})`;
+                const path = v1dom.worldlinePaths[i];
+                const circle = v1dom.targetCircles[i];
+                if (w <= 0.005) {
+                    path.setAttribute('visibility', 'hidden');
+                } else {
+                    const y0 = (v1.stateY - t_safe * zy) / one_minus_t;
+                    path.setAttribute('d', `M ${V1_W - 6} ${zy} L ${tPosX} ${v1.stateY} L 6 ${y0}`);
+                    path.setAttribute('stroke', vizWorldlineStroke(w));
+                    path.setAttribute('stroke-width', w * 5 + 1);
+                    path.setAttribute('visibility', 'visible');
                 }
-                ctx1.lineWidth = w * 5 + 1;
-                ctx1.stroke();
+                circle.setAttribute('cx', V1_W - 6);
+                circle.setAttribute('cy', zy);
+                circle.setAttribute('fill', '#4fc3f7');
+                circle.setAttribute('fill-opacity', vizAlpha(0.5, 'hump'));
+                circle.setAttribute('visibility', 'visible');
             });
+            for (let i = v1.targetsY.length; i < v1dom.worldlinePaths.length; i++) {
+                v1dom.worldlinePaths[i].setAttribute('visibility', 'hidden');
+                v1dom.targetCircles[i].setAttribute('visibility', 'hidden');
+            }
 
-            // Draw data points at t=1 (right edge)
-            v1.targetsY.forEach((zy) => {
-                ctx1.beginPath();
-                ctx1.arc(cvs1.width - 6, zy, 5, 0, Math.PI * 2);
-                // 50% opacity
-                ctx1.fillStyle = `rgba(79, 195, 247, ${vizAlpha(0.5, 'hump')})`;
-                ctx1.fill();
-            });
-
-            // Draw the green cursor at (t, stateY)
-            ctx1.beginPath();
-            ctx1.arc(tPosX, v1.stateY, 8, 0, Math.PI*2);
-            ctx1.fillStyle = '#81c784';
-            ctx1.fill();
-            // t overlay near the green dot
-            ctx1.save();
-            ctx1.fillStyle = th.textBright;
-            ctx1.font = '12px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
-            const tx1 = cvs1.width/2;
-            const ty1 = 20;
-            ctx1.fillText(`t=${v1.t.toFixed(2)}`, tx1, ty1);
-            ctx1.restore();
+            v1dom.cursor.setAttribute('cx', tPosX);
+            v1dom.cursor.setAttribute('cy', v1.stateY);
         }
 
+        buildV1Svg();
         initV1Data();
+        registerVizRefresh(drawV1);
         loopV1();
 
 
         // =========================================
         // VIZ 2: SIMULATION
         // =========================================
-        const cvs2 = document.getElementById('simCanvas');
-        const ctx2 = cvs2.getContext('2d');
+        const simSvg = document.getElementById('simSvg');
         const btnResetSim = document.getElementById('btnResetSim');
         const btnRandomizeSim = document.getElementById('btnRandomizeSim');
         const btnAutoPlay = document.getElementById('btnAutoPlay');
         const simModeBtns = document.querySelectorAll('.sim-mode-btn');
-        const dt = 1 / 1000; // Slow time step
+        const SIM_W = 800, SIM_H = 400;
+        const dt = 1 / 1000;
         const SIM_MODES = [
             { mode: 'resample', interval: 1000, label: 'Conditional', overlay: 'Conditional process' },
             { mode: 'resample', interval: 100, label: '0.1', overlay: 'Resampled (interval 0.1)' },
@@ -2113,6 +2166,79 @@
             autoStageIndex: 0,
             currentModeIndex: 0
         };
+
+        const simdom = {};
+
+        function buildSimSvg() {
+            simSvg.replaceChildren();
+
+            simdom.priorLabel = svgEl('text', { x: PRIOR_CENTER_2.x - 40, y: 20, 'font-size': 12 });
+            simdom.dataLabel = svgEl('text', { x: SIM_W - 50, y: 20, 'font-size': 12 });
+            simSvg.appendChild(simdom.priorLabel);
+            simSvg.appendChild(simdom.dataLabel);
+
+            simdom.targetsG = svgEl('g', { class: 'sim-targets' });
+            simdom.targetEls = simTargets.map(() => {
+                const c = svgEl('circle', { r: 6, fill: 'none', 'stroke-width': 2 });
+                simdom.targetsG.appendChild(c);
+                return c;
+            });
+            simSvg.appendChild(simdom.targetsG);
+
+            simdom.bgTrailsG = svgEl('g', { class: 'sim-bg-trails' });
+            simdom.bgTrailPaths = [];
+            for (let i = 1; i < 80; i++) {
+                const p = svgEl('path', {
+                    class: 'viz-trail',
+                    fill: 'none',
+                    'stroke-width': 1,
+                    'shape-rendering': 'geometricPrecision',
+                    'vector-effect': 'non-scaling-stroke'
+                });
+                simdom.bgTrailsG.appendChild(p);
+                simdom.bgTrailPaths.push(p);
+            }
+            simSvg.appendChild(simdom.bgTrailsG);
+
+            simdom.heroPath = svgEl('path', {
+                class: 'viz-trail',
+                fill: 'none',
+                stroke: '#f06292',
+                'stroke-width': 2.5,
+                'shape-rendering': 'geometricPrecision',
+                'vector-effect': 'non-scaling-stroke'
+            });
+            simSvg.appendChild(simdom.heroPath);
+
+            const heroArrow = makeSvgArrow();
+            simdom.heroArrow = heroArrow;
+            simSvg.appendChild(heroArrow.g);
+
+            simdom.heroDot = svgEl('circle', { r: 4, fill: '#f06292', class: 'viz-dot' });
+            simSvg.appendChild(simdom.heroDot);
+
+            simdom.progressBg = svgEl('rect', { x: 0, y: SIM_H - 5, width: SIM_W, height: 5 });
+            simdom.progressFill = svgEl('rect', { x: 0, y: SIM_H - 5, height: 5 });
+            simSvg.appendChild(simdom.progressBg);
+            simSvg.appendChild(simdom.progressFill);
+
+            simdom.overlayG = svgEl('g', { visibility: 'hidden' });
+            simdom.overlayRect = svgEl('rect', { rx: 4, ry: 4 });
+            simdom.overlayText = svgEl('text', { 'font-size': 14, 'dominant-baseline': 'middle' });
+            simdom.overlayG.appendChild(simdom.overlayRect);
+            simdom.overlayG.appendChild(simdom.overlayText);
+            simSvg.appendChild(simdom.overlayG);
+        }
+
+        function particleTrailD(p) {
+            if (p.history.length === 0) return '';
+            let d = `M ${p.history[0].x} ${p.history[0].y}`;
+            for (let k = 1; k < p.history.length; k++) {
+                d += ` L ${p.history[k].x} ${p.history[k].y}`;
+            }
+            d += ` L ${p.x} ${p.y}`;
+            return d;
+        }
 
         function updateSimModeUI(activeIdx) {
             sim.currentModeIndex = activeIdx;
@@ -2231,106 +2357,84 @@
         }
 
         function drawSim() {
-            vizClearCanvas(ctx2, cvs2);
             const th = getVizTheme();
 
-            ctx2.fillStyle = th.textMuted;
-            ctx2.fillText("Prior (t=0)", PRIOR_CENTER_2.x - 40, 20);
-            ctx2.fillText("Data (t=1)", cvs2.width - 50, 20);
+            simdom.priorLabel.setAttribute('fill', th.textMuted);
+            simdom.priorLabel.textContent = 'Prior (t=0)';
+            simdom.dataLabel.setAttribute('fill', th.textMuted);
+            simdom.dataLabel.textContent = 'Data (t=1)';
 
-            // Identify Hero
             const hero = sim.particles[0];
+            if (!hero) return;
 
-            // 1. Draw Targets (Visuals depend on Hero)
-            // Calculate Hero Weights for visualization
             const heroWeights = getPosteriorWeights(hero, simTargets, sim.t, PRIOR_CENTER_2, PRIOR_SIGMA_2);
-
-            simTargets.forEach((z, i) => {
-                ctx2.beginPath();
-                ctx2.arc(z.x, z.y, 6, 0, Math.PI*2);
-                
-                // Base Outline, with 50% opacity
-                ctx2.strokeStyle = `rgba(79, 195, 247, ${vizAlpha(0.25, 'hump')})`;
-                ctx2.lineWidth = 2;
-                ctx2.stroke();
-
-                // Fill Logic
-                if (sim.mode === 'average') {
-                    // Opacity based on weight
-                    ctx2.fillStyle = `rgba(79, 195, 247, ${vizAlpha(heroWeights[i], 'hump')})`;
-                    ctx2.fill();
-                } else {
-                    // Resample Mode: Only highlight the one chosen by Hero
-                    if (hero.currentZ === z) {
-                        ctx2.fillStyle = `rgba(79, 195, 247, ${vizAlpha(1, 'hump')})`;
-                        ctx2.fill();
-                    } else {
-                        ctx2.fillStyle = 'transparent';
-                        ctx2.fill();
-                    }
-                }
-            });
-
-            // 2. Draw Background Particles (Faded)
-            ctx2.lineWidth = 1;
             const traceStroke = VizSettings.bgMode === 'light'
                 ? `rgba(0, 0, 0, ${vizAlpha(0.12, 'trace')})`
                 : `rgba(255, 255, 255, ${vizAlpha(0.12, 'trace')})`;
-            for(let i=1; i<sim.particles.length; i++) {
-                let p = sim.particles[i];
-                if(p.history.length > 0) {
-                    ctx2.beginPath();
-                    ctx2.moveTo(p.history[0].x, p.history[0].y);
-                    for(let pt of p.history) ctx2.lineTo(pt.x, pt.y);
-                    ctx2.lineTo(p.x, p.y);
-                    ctx2.strokeStyle = traceStroke;
-                    ctx2.stroke();
+
+            simTargets.forEach((z, i) => {
+                const el = simdom.targetEls[i];
+                el.setAttribute('cx', z.x);
+                el.setAttribute('cy', z.y);
+                el.setAttribute('stroke', '#4fc3f7');
+                el.setAttribute('stroke-opacity', vizAlpha(0.25, 'hump'));
+                if (sim.mode === 'average') {
+                    el.setAttribute('fill', '#4fc3f7');
+                    el.setAttribute('fill-opacity', vizAlpha(heroWeights[i], 'hump'));
+                } else if (hero.currentZ === z) {
+                    el.setAttribute('fill', '#4fc3f7');
+                    el.setAttribute('fill-opacity', vizAlpha(1, 'hump'));
+                } else {
+                    el.setAttribute('fill', 'none');
+                    el.setAttribute('fill-opacity', 0);
+                }
+            });
+
+            for (let i = 1; i < sim.particles.length; i++) {
+                const p = sim.particles[i];
+                const path = simdom.bgTrailPaths[i - 1];
+                if (p.history.length > 0) {
+                    path.setAttribute('d', particleTrailD(p));
+                    path.setAttribute('stroke', traceStroke);
+                    path.setAttribute('visibility', 'visible');
+                } else {
+                    path.setAttribute('visibility', 'hidden');
                 }
             }
 
-            // 3. Draw Hero Particle (Red, Bold)
-            ctx2.save();
-            ctx2.globalAlpha = vizAlpha(1, 'trace');
-            ctx2.lineWidth = 2.5;
-            ctx2.strokeStyle = '#f06292';
-            ctx2.beginPath();
-            if(hero.history.length > 0) {
-                ctx2.moveTo(hero.history[0].x, hero.history[0].y);
-                for(let pt of hero.history) ctx2.lineTo(pt.x, pt.y);
-                ctx2.lineTo(hero.x, hero.y);
+            if (hero.history.length > 0) {
+                simdom.heroPath.setAttribute('d', particleTrailD(hero));
+                simdom.heroPath.setAttribute('stroke-opacity', vizAlpha(1, 'trace'));
+                simdom.heroPath.setAttribute('visibility', 'visible');
+            } else {
+                simdom.heroPath.setAttribute('visibility', 'hidden');
             }
-            ctx2.stroke();
 
-            // 3.5 Draw thin faint red arrow for the Hero
             if (sim.mode === 'average') {
-                // Arrow toward average direction (like Viz 1)
                 let avgVx = 0, avgVy = 0;
                 simTargets.forEach((z, i) => {
                     avgVx += heroWeights[i] * (z.x - hero.x);
                     avgVy += heroWeights[i] * (z.y - hero.y);
                 });
-                drawArrowStyled(ctx2, hero.x, hero.y, hero.x + avgVx, hero.y + avgVy, '#f06292', 1, 0.5);
+                updateSvgArrow(simdom.heroArrow, hero.x, hero.y, hero.x + avgVx, hero.y + avgVy, {
+                    color: '#f06292', lineWidth: 1, alpha: 0.5, headlen: 8
+                });
+            } else if (hero.currentZ) {
+                updateSvgArrow(simdom.heroArrow, hero.x, hero.y, hero.currentZ.x, hero.currentZ.y, {
+                    color: '#f06292', lineWidth: 1, alpha: 0.5, headlen: 8
+                });
             } else {
-                // Arrow toward current chosen Z
-                if (hero.currentZ) {
-                    drawArrowStyled(ctx2, hero.x, hero.y, hero.currentZ.x, hero.currentZ.y, '#f06292', 1, 0.5);
-                }
+                simdom.heroArrow.line.setAttribute('visibility', 'hidden');
+                simdom.heroArrow.head.setAttribute('visibility', 'hidden');
             }
 
-            ctx2.beginPath();
-            ctx2.arc(hero.x, hero.y, 4, 0, Math.PI*2);
-            ctx2.fillStyle = '#f06292';
-            ctx2.fill();
-            ctx2.restore();
+            simdom.heroDot.setAttribute('cx', hero.x);
+            simdom.heroDot.setAttribute('cy', hero.y);
 
-            // Progress Bar
-            ctx2.fillStyle = th.gridB;
-            ctx2.fillRect(0, cvs2.height - 5, cvs2.width, 5);
-            ctx2.save();
-            ctx2.globalAlpha = vizAlpha(1, 'default');
-            ctx2.fillStyle = sim.mode === 'average' ? '#81c784' : '#f06292';
-            ctx2.fillRect(0, cvs2.height - 5, cvs2.width * sim.t, 5);
-            ctx2.restore();
+            simdom.progressBg.setAttribute('fill', th.gridB);
+            simdom.progressFill.setAttribute('fill', sim.mode === 'average' ? '#81c784' : '#f06292');
+            simdom.progressFill.setAttribute('width', SIM_W * sim.t);
+            simdom.progressFill.setAttribute('fill-opacity', vizAlpha(1, 'default'));
 
             drawAutoStageOverlay();
         }
@@ -2358,26 +2462,35 @@
         }
 
         function drawAutoStageOverlay() {
-            if (!sim.autoPlayActive) return;
+            if (!sim.autoPlayActive) {
+                simdom.overlayG.setAttribute('visibility', 'hidden');
+                return;
+            }
             const label = SIM_MODES[sim.autoStageIndex]?.overlay;
-            if (!label) return;
+            if (!label) {
+                simdom.overlayG.setAttribute('visibility', 'hidden');
+                return;
+            }
             const th = getVizTheme();
-            ctx2.save();
-            ctx2.font = '14px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
             const padding = 8;
-            const textWidth = ctx2.measureText(label).width;
-            const x = (cvs2.width - textWidth) / 2 - padding;
-            const y = 8;
+            const textWidth = label.length * 7.5;
             const w = textWidth + padding * 2;
             const h = 24;
+            const x = (SIM_W - w) / 2;
+            const y = 8;
             const boxAlpha = vizAlpha(VizSettings.bgMode === 'light' ? 0.85 : 0.5, 'default');
-            ctx2.fillStyle = VizSettings.bgMode === 'light'
+            simdom.overlayRect.setAttribute('x', x);
+            simdom.overlayRect.setAttribute('y', y);
+            simdom.overlayRect.setAttribute('width', w);
+            simdom.overlayRect.setAttribute('height', h);
+            simdom.overlayRect.setAttribute('fill', VizSettings.bgMode === 'light'
                 ? `rgba(255, 255, 255, ${boxAlpha})`
-                : `rgba(0, 0, 0, ${boxAlpha})`;
-            ctx2.fillRect(x, y, w, h);
-            ctx2.fillStyle = th.textBright;
-            ctx2.fillText(label, x + padding, y + 16);
-            ctx2.restore();
+                : `rgba(0, 0, 0, ${boxAlpha})`);
+            simdom.overlayText.setAttribute('x', x + padding);
+            simdom.overlayText.setAttribute('y', y + h / 2);
+            simdom.overlayText.setAttribute('fill', th.textBright);
+            simdom.overlayText.textContent = label;
+            simdom.overlayG.setAttribute('visibility', 'visible');
         }
 
         // Sim Controls
@@ -2406,20 +2519,16 @@
             }
         });
 
-        // Click to set Hero X0 and restart
-        cvs2.addEventListener('click', (e) => {
-            const rect = cvs2.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+        simSvg.addEventListener('click', (e) => {
+            const pt = svgPointer(simSvg, e.clientX, e.clientY, SIM_W, SIM_H);
             if (!sim.initialSeeds || sim.initialSeeds.length === 0) {
                 randomizeInitialSeeds(80);
             }
-            // Hero is particle 0
-            sim.initialSeeds[0] = { x, y };
+            sim.initialSeeds[0] = { x: pt.x, y: pt.y };
             startSimFromSeeds();
         });
 
-        // Init (randomize once, build particles, set defaults; do NOT start running)
+        buildSimSvg();
         randomizeInitialSeeds(80);
         applySimMode(0, { start: false });
         buildParticlesFromSeeds();
@@ -2433,10 +2542,10 @@
         // =========================================
         // VIZ 3: POSTERIOR FIELD WITH ARROW
         // =========================================
-        const cvs3 = document.getElementById('posteriorCanvas3');
-        const ctx3 = cvs3.getContext('2d');
+        const posteriorSvg3 = document.getElementById('posteriorSvg3');
         const inputN3 = document.getElementById('inputN3');
         const btnResampleData3 = document.getElementById('btnResampleData3');
+        const V3_W = 600, V3_H = 450;
 
         let v3 = {
             stateY: 100,
@@ -2444,6 +2553,54 @@
             targetsY: [],
             animId: null
         };
+
+        const v3dom = {};
+
+        function buildV3Svg() {
+            posteriorSvg3.replaceChildren();
+            v3dom.priorHump = svgEl('path', { class: 'viz-prior-hump' });
+            posteriorSvg3.appendChild(v3dom.priorHump);
+
+            v3dom.priorLabel = svgEl('text', { x: 2, y: 20, 'font-size': 12 });
+            v3dom.dataLabel = svgEl('text', { x: V3_W - 50, y: 20, 'font-size': 12 });
+            v3dom.tLabel = svgEl('text', { x: V3_W / 2, y: 20, 'text-anchor': 'middle', 'font-size': 12 });
+            posteriorSvg3.appendChild(v3dom.priorLabel);
+            posteriorSvg3.appendChild(v3dom.dataLabel);
+            posteriorSvg3.appendChild(v3dom.tLabel);
+
+            v3dom.worldlinesG = svgEl('g', { class: 'viz-worldlines' });
+            v3dom.worldlinePaths = [];
+            for (let i = 0; i < 100; i++) {
+                const p = svgEl('path', {
+                    class: 'viz-trail',
+                    fill: 'none',
+                    'stroke-linecap': 'round',
+                    'stroke-linejoin': 'round',
+                    'shape-rendering': 'geometricPrecision',
+                    'vector-effect': 'non-scaling-stroke',
+                    visibility: 'hidden'
+                });
+                v3dom.worldlinesG.appendChild(p);
+                v3dom.worldlinePaths.push(p);
+            }
+            posteriorSvg3.appendChild(v3dom.worldlinesG);
+
+            v3dom.targetsG = svgEl('g', { class: 'viz-targets' });
+            v3dom.targetCircles = [];
+            for (let i = 0; i < 100; i++) {
+                const c = svgEl('circle', { r: 5, visibility: 'hidden' });
+                v3dom.targetsG.appendChild(c);
+                v3dom.targetCircles.push(c);
+            }
+            posteriorSvg3.appendChild(v3dom.targetsG);
+
+            const v3Arrow = makeSvgArrow();
+            v3dom.velocityArrow = v3Arrow;
+            posteriorSvg3.appendChild(v3Arrow.g);
+
+            v3dom.cursor = svgEl('circle', { r: 8, fill: '#81c784', class: 'viz-dot' });
+            posteriorSvg3.appendChild(v3dom.cursor);
+        }
 
         function initV3Data() {
             const n = parseInt(inputN3.value) || 4;
@@ -2458,18 +2615,17 @@
             }
         }
 
-        // Inputs
-        cvs3.addEventListener('mousemove', e => {
-            const r = cvs3.getBoundingClientRect();
-            v3.t = Math.min(Math.max((e.clientX - r.left) / cvs3.width, 0), 1);
-            v3.stateY = e.clientY - r.top;
-        });
-        cvs3.addEventListener('touchmove', e => {
+        function setV3FromEvent(clientX, clientY) {
+            const pt = svgPointer(posteriorSvg3, clientX, clientY, V3_W, V3_H);
+            v3.t = Math.min(Math.max(pt.x / V3_W, 0), 1);
+            v3.stateY = pt.y;
+        }
+
+        posteriorSvg3.addEventListener('mousemove', e => setV3FromEvent(e.clientX, e.clientY));
+        posteriorSvg3.addEventListener('touchmove', e => {
             e.preventDefault();
-            const r = cvs3.getBoundingClientRect();
-            v3.t = Math.min(Math.max((e.touches[0].clientX - r.left) / cvs3.width, 0), 1);
-            v3.stateY = e.touches[0].clientY - r.top;
-        }, {passive:false});
+            setV3FromEvent(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
 
         btnResampleData3.addEventListener('click', initV3Data);
 
@@ -2479,73 +2635,63 @@
         }
 
         function drawV3() {
-            vizClearCanvas(ctx3, cvs3);
             const th = getVizTheme();
-
             const priorMeanY = PRIOR_CENTER_1.y;
             const priorSigmaY = PRIOR_SIGMA_1;
-            drawVerticalGaussianHump(ctx3, cvs3.height, priorMeanY, priorSigmaY, 60, th.humpGray);
-            ctx3.fillStyle = th.text;
-            ctx3.fillText("Prior (t=0)", 2, 20);
-            ctx3.fillText("Data (t=1)", cvs3.width - 50, 20);
 
-            const tPosX = v3.t * cvs3.width;
+            v3dom.priorHump.setAttribute('d', verticalGaussianHumpD(V3_H, priorMeanY, priorSigmaY, 60));
+            v3dom.priorHump.setAttribute('fill', th.humpGray);
+            v3dom.priorHump.setAttribute('fill-opacity', vizAlpha(0.15, 'hump'));
 
-            // Compute 1D posterior weights
+            v3dom.priorLabel.setAttribute('fill', th.text);
+            v3dom.priorLabel.textContent = 'Prior (t=0)';
+            v3dom.dataLabel.setAttribute('fill', th.text);
+            v3dom.dataLabel.textContent = 'Data (t=1)';
+            v3dom.tLabel.setAttribute('fill', th.textBright);
+            v3dom.tLabel.textContent = `t=${v3.t.toFixed(2)}`;
+
+            const tPosX = v3.t * V3_W;
             const weights = getPosteriorWeights1D(v3.stateY, v3.targetsY, v3.t, priorMeanY, priorSigmaY);
-
-            // Blue worldlines across time
             const t_safe = Math.min(v3.t, 0.9999);
             const one_minus_t = 1 - t_safe;
+
             v3.targetsY.forEach((zy, i) => {
                 const w = weights[i];
-                if (w <= 0.001) return;
-                const y0 = (v3.stateY - t_safe * zy) / one_minus_t;
-                ctx3.beginPath();
-                ctx3.moveTo(cvs3.width - 6, zy);
-                ctx3.lineTo(tPosX, v3.stateY);
-                ctx3.lineTo(6, y0);
-                //ctx3.strokeStyle = `rgba(79, 195, 247, ${w})`;
-                ctx3.strokeStyle = `rgba(255, 255, 255, ${vizAlpha(w + 0.025, 'hump')})`;
-                if (VizSettings.bgMode === 'light') {
-                    ctx3.strokeStyle = `rgba(0, 0, 0, ${vizAlpha(w * 0.35 + 0.05, 'hump')})`;
+                const path = v3dom.worldlinePaths[i];
+                const circle = v3dom.targetCircles[i];
+                if (w <= 0.001) {
+                    path.setAttribute('visibility', 'hidden');
+                } else {
+                    const y0 = (v3.stateY - t_safe * zy) / one_minus_t;
+                    path.setAttribute('d', `M ${V3_W - 6} ${zy} L ${tPosX} ${v3.stateY} L 6 ${y0}`);
+                    path.setAttribute('stroke', vizWorldlineStroke(w));
+                    path.setAttribute('stroke-width', w * 4 + 1);
+                    path.setAttribute('visibility', 'visible');
                 }
-                ctx3.lineWidth = w * 4 + 1;
-                ctx3.stroke();
+                circle.setAttribute('cx', V3_W - 6);
+                circle.setAttribute('cy', zy);
+                circle.setAttribute('fill', '#4fc3f7');
+                circle.setAttribute('fill-opacity', vizAlpha(0.25, 'hump'));
+                circle.setAttribute('visibility', 'visible');
             });
+            for (let i = v3.targetsY.length; i < v3dom.worldlinePaths.length; i++) {
+                v3dom.worldlinePaths[i].setAttribute('visibility', 'hidden');
+                v3dom.targetCircles[i].setAttribute('visibility', 'hidden');
+            }
 
-            // Data points at t=1
-            v3.targetsY.forEach((zy) => {
-                ctx3.beginPath();
-                ctx3.arc(cvs3.width - 6, zy, 5, 0, Math.PI * 2);
-                ctx3.fillStyle = `rgba(79, 195, 247, ${vizAlpha(0.25, 'hump')})`;
-                ctx3.fill();
-            });
+            v3dom.cursor.setAttribute('cx', tPosX);
+            v3dom.cursor.setAttribute('cy', v3.stateY);
 
-            // Green point (t, stateY)
-            ctx3.beginPath();
-            ctx3.arc(tPosX, v3.stateY, 8, 0, Math.PI*2);
-            ctx3.fillStyle = '#81c784';
-            ctx3.fill();
-
-            // Red arrow: point to posterior-averaged X1 on the t=1 line
             let yAvg1 = 0;
-            v3.targetsY.forEach((zy, i) => {
-                yAvg1 += weights[i] * zy;
+            v3.targetsY.forEach((zy, i) => { yAvg1 += weights[i] * zy; });
+            updateSvgArrow(v3dom.velocityArrow, tPosX, v3.stateY, V3_W - 6, yAvg1, {
+                color: '#f06292', lineWidth: 3, alpha: 1, headlen: 10, kind: 'default'
             });
-            drawArrow(ctx3, tPosX, v3.stateY, cvs3.width - 6, yAvg1, '#f06292');
-
-            // t overlay near the green dot
-            ctx3.save();
-            ctx3.fillStyle = th.textBright;
-            ctx3.font = '12px -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial, sans-serif';
-            const tx3 = cvs3.width/2;
-            const ty3 = 20;
-            ctx3.fillText(`t=${v3.t.toFixed(2)}`, tx3, ty3);
-            ctx3.restore();
         }
 
+        buildV3Svg();
         initV3Data();
+        registerVizRefresh(drawV3);
         loopV3();
 
         // =========================================
@@ -2636,84 +2782,6 @@
             };
         }
 
-        function drawMouseAxes(ctx, layout, canvasHeight) {
-            const th = getVizTheme();
-            ctx.strokeStyle = th.axis;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(layout.leftX0, layout.plotTop);
-            ctx.lineTo(layout.leftX0, layout.plotBottom);
-            ctx.lineTo(layout.leftX1, layout.plotBottom);
-            ctx.stroke();
-
-            ctx.fillStyle = th.text;
-            ctx.font = '12px -apple-system, system-ui, sans-serif';
-            ctx.fillText('weight (g)', 8, layout.plotTop + 12);
-            ctx.fillText('10', 22, layout.plotBottom + 4);
-            ctx.fillText('30', 22, layout.plotTop + 4);
-            ctx.fillText('t = 0 (weaning)', layout.leftX0, layout.plotBottom + 18);
-            ctx.fillText('t = 1 (adult)', layout.leftX1 - 72, layout.plotBottom + 18);
-
-            const priorMeanY = layout.weightToY(MOUSE.priorMean);
-            const priorSigmaY = (MOUSE.priorSigma / (MOUSE.wMax - MOUSE.wMin)) * layout.plotH;
-            drawVerticalGaussianHump(ctx, canvasHeight, priorMeanY, priorSigmaY, 45, th.humpGray);
-        }
-
-        function drawMouseTargetLines(ctx, layout) {
-            ctx.setLineDash([6, 5]);
-            ctx.lineWidth = 1;
-            [[MOUSE.targetF, MOUSE.colorF, '♀ 22 g'], [MOUSE.targetM, MOUSE.colorM, '♂ 28 g']].forEach(([w, col, label]) => {
-                const y = layout.weightToY(w);
-                ctx.strokeStyle = col;
-                ctx.globalAlpha = vizAlpha(0.45, 'hump');
-                ctx.beginPath();
-                ctx.moveTo(layout.leftX0, y);
-                ctx.lineTo(layout.leftX1, y);
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-                ctx.fillStyle = col;
-                ctx.font = '11px -apple-system, system-ui, sans-serif';
-                ctx.fillText(label, layout.leftX1 - 46, y - 5);
-            });
-            ctx.setLineDash([]);
-        }
-
-        function drawMouseMeanCurves(ctx, layout) {
-            ctx.setLineDash([4, 4]);
-            ctx.lineWidth = 2;
-            [[MOUSE.targetF, MOUSE.colorF], [MOUSE.targetM, MOUSE.colorM]].forEach(([target, col]) => {
-                ctx.strokeStyle = col;
-                ctx.globalAlpha = vizAlpha(0.4, 'trace');
-                ctx.beginPath();
-                for (let i = 0; i <= 80; i++) {
-                    const t = i / 80;
-                    const w = mouseCondMean(target, t);
-                    const x = layout.tToX(t);
-                    const y = layout.weightToY(w);
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                }
-                ctx.stroke();
-            });
-            ctx.setLineDash([]);
-            ctx.globalAlpha = 1;
-        }
-
-        function drawMouseTrajectory(ctx, layout, pts, color, alpha) {
-            ctx.strokeStyle = color;
-            ctx.globalAlpha = vizAlpha(alpha, 'trace');
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            pts.forEach((pt, i) => {
-                const x = layout.tToX(pt.t);
-                const y = layout.weightToY(pt.x);
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            });
-            ctx.stroke();
-            ctx.globalAlpha = 1;
-        }
-
         function gramsToPlotSigma(layout, sigmaG) {
             return sigmaG / (MOUSE.wMax - MOUSE.wMin) * layout.plotH;
         }
@@ -2729,58 +2797,13 @@
             return `rgb(${Math.round(pF * rF + pM * rM)}, ${Math.round(pF * gF + pM * gM)}, ${Math.round(pF * bF + pM * bM)})`;
         }
 
-        // Canvas fillText cannot render TeX — draw subscripts manually
-        function drawCanvasTextWithSubscripts(ctx, centerX, y, segments, mainSize, subSize) {
-            const mainFont = `${mainSize}px -apple-system, system-ui, sans-serif`;
-            const subFont = `${subSize}px -apple-system, system-ui, sans-serif`;
-            let totalW = 0;
-            for (const seg of segments) {
-                ctx.font = seg.sub ? subFont : mainFont;
-                totalW += ctx.measureText(seg.text).width;
-            }
-            let x = centerX - totalW / 2;
-            ctx.textBaseline = 'alphabetic';
-            for (const seg of segments) {
-                ctx.font = seg.sub ? subFont : mainFont;
-                const yOff = seg.sub ? y + Math.round(mainSize * 0.28) : y;
-                ctx.fillText(seg.text, x, yOff);
-                x += ctx.measureText(seg.text).width;
-            }
-        }
-
-        function drawMousePosteriorHeader(ctx, canvasWidth, y, pM) {
-            ctx.save();
-            ctx.fillStyle = getVizTheme().textBright;
-            drawCanvasTextWithSubscripts(ctx, canvasWidth / 2, y, [
-                { text: 'p(male | x', sub: false },
-                { text: 't', sub: true },
-                { text: `, t) = ${pM.toFixed(2)}`, sub: false }
-            ], 15, 10);
-            ctx.restore();
-        }
-
-        function drawHorizontalGaussianHump(ctx, layout, xBar, meanY, sigmaY, maxWidth, color, alpha) {
-            ctx.save();
-            ctx.fillStyle = color;
-            ctx.globalAlpha = vizAlpha(alpha, 'hump');
-            ctx.beginPath();
-            ctx.moveTo(xBar, layout.plotTop);
-            for (let y = layout.plotTop; y <= layout.plotBottom; y += 2) {
-                const pdf = Math.exp(-((y - meanY) ** 2) / (2 * sigmaY * sigmaY));
-                ctx.lineTo(xBar + maxWidth * pdf, y);
-            }
-            ctx.lineTo(xBar, layout.plotBottom);
-            ctx.closePath();
-            ctx.fill();
-            ctx.restore();
-        }
-
         // --- Static: 20 sample trajectories + hover probe ---
-        const cvsMouseStatic = document.getElementById('mouseStaticCanvas');
-        if (cvsMouseStatic) {
-            const ctxS = cvsMouseStatic.getContext('2d');
-            const layoutS = makeMousePlotLayout(cvsMouseStatic.width, cvsMouseStatic.height, true);
+        const mouseStaticSvg = document.getElementById('mouseStaticSvg');
+        const MOUSE_W = 720, MOUSE_H = 380;
+        if (mouseStaticSvg) {
+            const layoutS = makeMousePlotLayout(MOUSE_W, MOUSE_H, true);
             const staticTrajectories = [];
+            const moused = {};
 
             for (let i = 0; i < MOUSE.nTrajectories; i++) {
                 const isFemale = i < MOUSE.nTrajectories / 2;
@@ -2792,45 +2815,166 @@
 
             let staticMouse = { active: false, t: 0.5, weight: 18 };
 
+            function buildMouseStaticSvg() {
+                mouseStaticSvg.replaceChildren();
+
+                moused.priorHump = svgEl('path', { class: 'viz-prior-hump' });
+                mouseStaticSvg.appendChild(moused.priorHump);
+
+                moused.axes = svgEl('path', {
+                    fill: 'none',
+                    'stroke-width': 1,
+                    'shape-rendering': 'geometricPrecision',
+                    'vector-effect': 'non-scaling-stroke'
+                });
+                mouseStaticSvg.appendChild(moused.axes);
+
+                const axisLabels = [
+                    { x: 8, y: layoutS.plotTop + 12, text: 'weight (g)' },
+                    { x: 22, y: layoutS.plotBottom + 4, text: '10' },
+                    { x: 22, y: layoutS.plotTop + 4, text: '30' },
+                    { x: layoutS.leftX0, y: layoutS.plotBottom + 18, text: 't = 0 (weaning)' },
+                    { x: layoutS.leftX1 - 72, y: layoutS.plotBottom + 18, text: 't = 1 (adult)' }
+                ];
+                moused.axisLabelEls = axisLabels.map(({ x, y, text }) => {
+                    const el = svgEl('text', { x, y, 'font-size': 12 });
+                    el.textContent = text;
+                    mouseStaticSvg.appendChild(el);
+                    return el;
+                });
+
+                moused.targetLinesG = svgEl('g');
+                moused.targetLineEls = [];
+                moused.targetLabelEls = [];
+                [[MOUSE.targetF, MOUSE.colorF, '♀ 22 g'], [MOUSE.targetM, MOUSE.colorM, '♂ 28 g']].forEach(([w, col, label]) => {
+                    const y = layoutS.weightToY(w);
+                    const line = svgEl('line', {
+                        x1: layoutS.leftX0, y1: y, x2: layoutS.leftX1, y2: y,
+                        stroke: col, 'stroke-width': 1,
+                        'stroke-dasharray': '6 5',
+                        'shape-rendering': 'geometricPrecision',
+                        'vector-effect': 'non-scaling-stroke'
+                    });
+                    const lbl = svgEl('text', {
+                        x: layoutS.leftX1 - 46, y: y - 5,
+                        'font-size': 11, fill: col
+                    });
+                    lbl.textContent = label;
+                    moused.targetLinesG.appendChild(line);
+                    moused.targetLinesG.appendChild(lbl);
+                    moused.targetLineEls.push(line);
+                    moused.targetLabelEls.push(lbl);
+                });
+                mouseStaticSvg.appendChild(moused.targetLinesG);
+
+                moused.meanCurvesG = svgEl('g');
+                moused.meanCurvePaths = [];
+                [[MOUSE.targetF, MOUSE.colorF], [MOUSE.targetM, MOUSE.colorM]].forEach(([target, col]) => {
+                    let d = '';
+                    for (let i = 0; i <= 80; i++) {
+                        const t = i / 80;
+                        const w = mouseCondMean(target, t);
+                        const x = layoutS.tToX(t);
+                        const y = layoutS.weightToY(w);
+                        d += (i === 0 ? 'M' : ' L') + ` ${x} ${y}`;
+                    }
+                    const path = svgEl('path', {
+                        d, fill: 'none', stroke: col, 'stroke-width': 2,
+                        'stroke-dasharray': '4 4',
+                        'shape-rendering': 'geometricPrecision',
+                        'vector-effect': 'non-scaling-stroke'
+                    });
+                    moused.meanCurvesG.appendChild(path);
+                    moused.meanCurvePaths.push(path);
+                });
+                mouseStaticSvg.appendChild(moused.meanCurvesG);
+
+                moused.trajG = svgEl('g');
+                moused.trajPaths = staticTrajectories.map(traj => {
+                    let d = '';
+                    traj.pts.forEach((pt, i) => {
+                        const x = layoutS.tToX(pt.t);
+                        const y = layoutS.weightToY(pt.x);
+                        d += (i === 0 ? 'M' : ' L') + ` ${x} ${y}`;
+                    });
+                    const path = svgEl('path', {
+                        d, fill: 'none', 'stroke-width': 1.5,
+                        class: 'viz-trail',
+                        'shape-rendering': 'geometricPrecision',
+                        'vector-effect': 'non-scaling-stroke'
+                    });
+                    moused.trajG.appendChild(path);
+                    return path;
+                });
+                mouseStaticSvg.appendChild(moused.trajG);
+
+                moused.hoverG = svgEl('g', { visibility: 'hidden' });
+                moused.humpF = svgEl('path');
+                moused.humpM = svgEl('path');
+                moused.probeLine = svgEl('line', {
+                    'stroke-width': 1.5, 'stroke-dasharray': '5 4',
+                    'shape-rendering': 'geometricPrecision',
+                    'vector-effect': 'non-scaling-stroke'
+                });
+                moused.probeDot = svgEl('circle', { r: 9, class: 'viz-dot' });
+                moused.headerText = svgEl('text', { y: 22 });
+                moused.hoverG.appendChild(moused.humpF);
+                moused.hoverG.appendChild(moused.humpM);
+                moused.hoverG.appendChild(moused.probeLine);
+                moused.hoverG.appendChild(moused.probeDot);
+                moused.hoverG.appendChild(moused.headerText);
+                mouseStaticSvg.appendChild(moused.hoverG);
+            }
+
             function staticPlotBounds(sx, sy) {
                 return sx >= layoutS.leftX0 && sx <= layoutS.leftX1 &&
                        sy >= layoutS.plotTop && sy <= layoutS.plotBottom;
             }
 
             function setStaticFromEvent(clientX, clientY) {
-                const r = cvsMouseStatic.getBoundingClientRect();
-                const sx = (clientX - r.left) * (cvsMouseStatic.width / r.width);
-                const sy = (clientY - r.top) * (cvsMouseStatic.height / r.height);
-                if (staticPlotBounds(sx, sy)) {
+                const pt = svgPointer(mouseStaticSvg, clientX, clientY, MOUSE_W, MOUSE_H);
+                if (staticPlotBounds(pt.x, pt.y)) {
                     staticMouse.active = true;
-                    staticMouse.t = layoutS.xToT(sx);
-                    staticMouse.weight = Math.min(Math.max(layoutS.yToWeight(sy), MOUSE.wMin), MOUSE.wMax);
+                    staticMouse.t = layoutS.xToT(pt.x);
+                    staticMouse.weight = Math.min(Math.max(layoutS.yToWeight(pt.y), MOUSE.wMin), MOUSE.wMax);
                 } else {
                     staticMouse.active = false;
                 }
             }
 
-            cvsMouseStatic.addEventListener('mousemove', e => setStaticFromEvent(e.clientX, e.clientY));
-            cvsMouseStatic.addEventListener('mouseleave', () => { staticMouse.active = false; });
-            cvsMouseStatic.addEventListener('touchmove', e => {
+            mouseStaticSvg.addEventListener('mousemove', e => setStaticFromEvent(e.clientX, e.clientY));
+            mouseStaticSvg.addEventListener('mouseleave', () => { staticMouse.active = false; });
+            mouseStaticSvg.addEventListener('touchmove', e => {
                 e.preventDefault();
                 setStaticFromEvent(e.touches[0].clientX, e.touches[0].clientY);
             }, { passive: false });
-            cvsMouseStatic.addEventListener('touchend', () => { staticMouse.active = false; });
+            mouseStaticSvg.addEventListener('touchend', () => { staticMouse.active = false; });
 
             function drawStaticMouse() {
-                vizClearCanvas(ctxS, cvsMouseStatic);
                 const th = getVizTheme();
-                drawMouseAxes(ctxS, layoutS, cvsMouseStatic.height);
-                drawMouseTargetLines(ctxS, layoutS);
-                drawMouseMeanCurves(ctxS, layoutS);
+                const priorMeanY = layoutS.weightToY(MOUSE.priorMean);
+                const priorSigmaY = (MOUSE.priorSigma / (MOUSE.wMax - MOUSE.wMin)) * layoutS.plotH;
 
-                for (const traj of staticTrajectories) {
-                    drawMouseTrajectory(
-                        ctxS, layoutS, traj.pts,
-                        traj.isFemale ? MOUSE.colorF : MOUSE.colorM, 0.75
-                    );
-                }
+                moused.priorHump.setAttribute('d', verticalGaussianHumpD(MOUSE_H, priorMeanY, priorSigmaY, 45));
+                moused.priorHump.setAttribute('fill', th.humpGray);
+                moused.priorHump.setAttribute('fill-opacity', vizAlpha(0.15, 'hump'));
+
+                moused.axes.setAttribute('d',
+                    `M ${layoutS.leftX0} ${layoutS.plotTop} L ${layoutS.leftX0} ${layoutS.plotBottom} L ${layoutS.leftX1} ${layoutS.plotBottom}`);
+                moused.axes.setAttribute('stroke', th.axis);
+                moused.axisLabelEls.forEach(el => el.setAttribute('fill', th.text));
+
+                moused.targetLineEls.forEach(line => {
+                    line.setAttribute('stroke-opacity', vizAlpha(0.45, 'hump'));
+                });
+                moused.meanCurvePaths.forEach(path => {
+                    path.setAttribute('stroke-opacity', vizAlpha(0.4, 'trace'));
+                });
+
+                staticTrajectories.forEach((traj, i) => {
+                    moused.trajPaths[i].setAttribute('stroke', traj.isFemale ? MOUSE.colorF : MOUSE.colorM);
+                    moused.trajPaths[i].setAttribute('stroke-opacity', vizAlpha(0.75, 'trace'));
+                });
 
                 if (staticMouse.active) {
                     const t = staticMouse.t;
@@ -2840,32 +2984,45 @@
                     const sig = mouseCondSigma(t);
                     const sigY = gramsToPlotSigma(layoutS, sig);
                     const humpWidth = Math.min(90, layoutS.leftX1 - tX - 8);
-
                     const muF = mouseCondMean(MOUSE.targetF, t);
                     const muM = mouseCondMean(MOUSE.targetM, t);
 
-                    drawHorizontalGaussianHump(ctxS, layoutS, tX, layoutS.weightToY(muF), sigY, humpWidth, MOUSE.colorF, 0.35);
-                    drawHorizontalGaussianHump(ctxS, layoutS, tX, layoutS.weightToY(muM), sigY, humpWidth, MOUSE.colorM, 0.35);
+                    moused.humpF.setAttribute('d', horizontalGaussianHumpD(
+                        tX, layoutS.plotTop, layoutS.plotBottom,
+                        layoutS.weightToY(muF), sigY, humpWidth
+                    ));
+                    moused.humpF.setAttribute('fill', MOUSE.colorF);
+                    moused.humpF.setAttribute('fill-opacity', vizAlpha(0.35, 'hump'));
 
-                    ctxS.strokeStyle = th.text;
-                    ctxS.lineWidth = 1.5;
-                    ctxS.setLineDash([5, 4]);
-                    ctxS.beginPath();
-                    ctxS.moveTo(tX, layoutS.plotTop);
-                    ctxS.lineTo(tX, layoutS.plotBottom);
-                    ctxS.stroke();
-                    ctxS.setLineDash([]);
+                    moused.humpM.setAttribute('d', horizontalGaussianHumpD(
+                        tX, layoutS.plotTop, layoutS.plotBottom,
+                        layoutS.weightToY(muM), sigY, humpWidth
+                    ));
+                    moused.humpM.setAttribute('fill', MOUSE.colorM);
+                    moused.humpM.setAttribute('fill-opacity', vizAlpha(0.35, 'hump'));
+
+                    moused.probeLine.setAttribute('x1', tX);
+                    moused.probeLine.setAttribute('y1', layoutS.plotTop);
+                    moused.probeLine.setAttribute('x2', tX);
+                    moused.probeLine.setAttribute('y2', layoutS.plotBottom);
+                    moused.probeLine.setAttribute('stroke', th.text);
 
                     const [pF, pM] = getMousePosteriorWeights(wObs, t);
-                    ctxS.beginPath();
-                    ctxS.arc(tX, yObs, 9, 0, Math.PI * 2);
-                    ctxS.fillStyle = blendPosteriorColor(pF, pM);
-                    ctxS.fill();
-                    ctxS.strokeStyle = th.dotStroke;
-                    ctxS.lineWidth = 1.5;
-                    ctxS.stroke();
+                    moused.probeDot.setAttribute('cx', tX);
+                    moused.probeDot.setAttribute('cy', yObs);
+                    moused.probeDot.setAttribute('fill', blendPosteriorColor(pF, pM));
+                    moused.probeDot.setAttribute('stroke', th.dotStroke);
+                    moused.probeDot.setAttribute('stroke-width', 1.5);
 
-                    drawMousePosteriorHeader(ctxS, cvsMouseStatic.width, 22, pM);
+                    setSvgTextWithSubscripts(moused.headerText, MOUSE_W / 2, 22, [
+                        { text: 'p(male | x', sub: false },
+                        { text: 't', sub: true },
+                        { text: `, t) = ${pM.toFixed(2)}`, sub: false }
+                    ], 15, 10, th.textBright);
+
+                    moused.hoverG.setAttribute('visibility', 'visible');
+                } else {
+                    moused.hoverG.setAttribute('visibility', 'hidden');
                 }
             }
 
@@ -2873,15 +3030,18 @@
                 drawStaticMouse();
                 requestAnimationFrame(loopStaticMouse);
             }
+
+            buildMouseStaticSvg();
+            registerVizRefresh(drawStaticMouse);
             loopStaticMouse();
         }
 
         // =========================================
         // AI SUBSCRIPTION DISCRETE MODEL
         // =========================================
-        const cvsAI = document.getElementById('aiDiscreteCanvas');
-        if (cvsAI) {
-            const ctxAI = cvsAI.getContext('2d');
+        const aiDiscreteSvg = document.getElementById('aiDiscreteSvg');
+        const AI_W = 1120, AI_H = 520;
+        if (aiDiscreteSvg) {
             const AI = {
                 nStates: 27,
                 nSteps: 200,
@@ -2894,15 +3054,14 @@
                 barW: 90,
                 maxHump: 70
             };
+            const aid = {};
 
             function aiUpdateLayout() {
-                const w = cvsAI.width;
-                const h = cvsAI.height;
                 AI.plotTop = 52;
-                AI.plotBottom = h - 22;
+                AI.plotBottom = AI_H - 22;
                 AI.plotH = AI.plotBottom - AI.plotTop;
                 AI.leftX0 = 96;
-                AI.leftX1 = w - AI.barW - 28;
+                AI.leftX1 = AI_W - AI.barW - 28;
                 AI.plotW = AI.leftX1 - AI.leftX0;
                 AI.barX = AI.leftX1 + 10;
             }
@@ -3113,96 +3272,193 @@
             }
 
             function aiSetFromEvent(clientX, clientY) {
-                const r = cvsAI.getBoundingClientRect();
-                const sx = (clientX - r.left) * (cvsAI.width / r.width);
-                const sy = (clientY - r.top) * (cvsAI.height / r.height);
-                if (aiInPlot(sx, sy)) {
+                const pt = svgPointer(aiDiscreteSvg, clientX, clientY, AI_W, AI_H);
+                if (aiInPlot(pt.x, pt.y)) {
                     aiHover.active = true;
-                    aiHover.t = aiXToT(sx);
-                    aiHover.state = aiYToState(sy);
+                    aiHover.t = aiXToT(pt.x);
+                    aiHover.state = aiYToState(pt.y);
                 } else {
                     aiHover.active = false;
                 }
             }
 
-            cvsAI.addEventListener('mousemove', e => aiSetFromEvent(e.clientX, e.clientY));
-            cvsAI.addEventListener('mouseleave', () => { aiHover.active = false; });
-            cvsAI.addEventListener('touchmove', e => {
+            aiDiscreteSvg.addEventListener('mousemove', e => aiSetFromEvent(e.clientX, e.clientY));
+            aiDiscreteSvg.addEventListener('mouseleave', () => { aiHover.active = false; });
+            aiDiscreteSvg.addEventListener('touchmove', e => {
                 e.preventDefault();
                 aiSetFromEvent(e.touches[0].clientX, e.touches[0].clientY);
             }, { passive: false });
-            cvsAI.addEventListener('touchend', () => { aiHover.active = false; });
+            aiDiscreteSvg.addEventListener('touchend', () => { aiHover.active = false; });
 
-            function drawAIBarChart(weights, x, yTop) {
+            function aiTrajPathD(pts) {
+                let px = aiTToX(pts[0].t);
+                let py = aiStateY(pts[0].s, pts[0].jitter);
+                let d = `M ${px} ${py}`;
+                for (let i = 1; i < pts.length; i++) {
+                    const x = aiTToX(pts[i].t);
+                    const y = aiStateY(pts[i].s, pts[i].jitter);
+                    d += ` L ${x} ${py} L ${x} ${y}`;
+                    px = x;
+                    py = y;
+                }
+                return d;
+            }
+
+            function buildAIDiscreteSvg() {
+                aiDiscreteSvg.replaceChildren();
+
+                aid.axes = svgEl('path', {
+                    fill: 'none', 'stroke-width': 1,
+                    'shape-rendering': 'geometricPrecision',
+                    'vector-effect': 'non-scaling-stroke'
+                });
+                aiDiscreteSvg.appendChild(aid.axes);
+
+                aid.axisTitle = svgEl('text', {
+                    x: AI.leftX0, y: AI.plotTop - 14, 'font-size': 11
+                });
+                aid.axisTitle.textContent = 'subscription state';
+                aid.t0Label = svgEl('text', { x: AI.leftX0, y: AI.plotBottom + 16, 'font-size': 11 });
+                aid.t0Label.textContent = 't = 0';
+                aid.t1Label = svgEl('text', { x: AI.leftX1 - 18, y: AI.plotBottom + 16, 'font-size': 11 });
+                aid.t1Label.textContent = 't = 1';
+                aiDiscreteSvg.appendChild(aid.axisTitle);
+                aiDiscreteSvg.appendChild(aid.t0Label);
+                aiDiscreteSvg.appendChild(aid.t1Label);
+
+                aid.gridG = svgEl('g');
+                aid.gridLines = [];
+                aid.stateLabels = [];
+                for (let s = 0; s < 27; s++) {
+                    const y = aiStateBaseY(s);
+                    const line = svgEl('line', {
+                        x1: AI.leftX0, y1: y, x2: AI.leftX1, y2: y,
+                        'stroke-width': 1,
+                        'shape-rendering': 'geometricPrecision',
+                        'vector-effect': 'non-scaling-stroke'
+                    });
+                    aid.gridG.appendChild(line);
+                    aid.gridLines.push(line);
+                    if (s === 0 || s === 13 || s === 26 || aiSpend(s) !== aiSpend(s - 1)) {
+                        const lbl = svgEl('text', { x: 4, y: y + 3, 'font-size': 9 });
+                        lbl.textContent = aiLabel(s);
+                        aid.gridG.appendChild(lbl);
+                        aid.stateLabels.push(lbl);
+                    }
+                }
+                aiDiscreteSvg.appendChild(aid.gridG);
+
+                aid.trajG = svgEl('g');
+                aid.trajPaths = aiTrajectories.map(traj => {
+                    const path = svgEl('path', {
+                        d: aiTrajPathD(traj.pts),
+                        fill: 'none',
+                        'stroke-width': 1.2,
+                        class: 'viz-trail',
+                        'shape-rendering': 'geometricPrecision',
+                        'vector-effect': 'non-scaling-stroke'
+                    });
+                    aid.trajG.appendChild(path);
+                    return path;
+                });
+                aiDiscreteSvg.appendChild(aid.trajG);
+
+                aid.hoverG = svgEl('g', { visibility: 'hidden' });
+                aid.rowHighlight = svgEl('rect');
+                aid.humpGs = [];
+                aid.humpRects = [];
+                for (let z = 0; z < 3; z++) {
+                    const g = svgEl('g');
+                    const rects = [];
+                    for (let s = 0; s < 27; s++) {
+                        const r = svgEl('rect', { height: 3, visibility: 'hidden' });
+                        g.appendChild(r);
+                        rects.push(r);
+                    }
+                    aid.humpGs.push(g);
+                    aid.humpRects.push(rects);
+                    aid.hoverG.appendChild(g);
+                }
+                aid.probeLine = svgEl('line', {
+                    'stroke-width': 1.5, 'stroke-dasharray': '5 4',
+                    'shape-rendering': 'geometricPrecision',
+                    'vector-effect': 'non-scaling-stroke'
+                });
+                aid.probeDot = svgEl('circle', { r: 8, class: 'viz-dot' });
+                aid.barG = svgEl('g');
+                aid.barTitle = svgEl('text', { 'font-size': 10 });
+                aid.barTitle.textContent = 'p(z | x_t, t)';
+                aid.barG.appendChild(aid.barTitle);
+                aid.barBg = [];
+                aid.barFill = [];
+                aid.barLabels = [];
+                const barH = 16, gap = 6;
+                for (let z = 0; z < 3; z++) {
+                    const bg = svgEl('rect', { height: barH });
+                    const fill = svgEl('rect', { height: barH });
+                    const lbl = svgEl('text', { 'font-size': 9, x: AI.barX + 4 });
+                    aid.barG.appendChild(bg);
+                    aid.barG.appendChild(fill);
+                    aid.barG.appendChild(lbl);
+                    aid.barBg.push(bg);
+                    aid.barFill.push(fill);
+                    aid.barLabels.push(lbl);
+                }
+                aid.stateObsLabel = svgEl('text', {
+                    x: AI.leftX0 + 4, y: AI.plotTop - 6, 'font-size': 11
+                });
+                aid.headerText = svgEl('text', { y: 18 });
+                aid.hoverG.appendChild(aid.rowHighlight);
+                aid.hoverG.appendChild(aid.probeLine);
+                aid.hoverG.appendChild(aid.probeDot);
+                aid.hoverG.appendChild(aid.barG);
+                aid.hoverG.appendChild(aid.stateObsLabel);
+                aid.hoverG.appendChild(aid.headerText);
+                aiDiscreteSvg.appendChild(aid.hoverG);
+            }
+
+            function updateAIBarChart(weights) {
                 const th = getVizTheme();
                 const barH = 16, gap = 6;
-                ctxAI.fillStyle = th.text;
-                ctxAI.font = '10px -apple-system, system-ui, sans-serif';
-                ctxAI.fillText('p(z | x_t, t)', x, yTop - 2);
+                const yTop = AI.plotTop + 8;
+                aid.barTitle.setAttribute('x', AI.barX);
+                aid.barTitle.setAttribute('y', yTop - 2);
+                aid.barTitle.setAttribute('fill', th.text);
                 for (let z = 0; z < 3; z++) {
                     const y = yTop + z * (barH + gap);
-                    ctxAI.fillStyle = th.gridA;
-                    ctxAI.fillRect(x, y, AI.barW, barH);
-                    ctxAI.fillStyle = AI.zColors[z];
-                    ctxAI.fillRect(x, y, Math.max(1, AI.barW * weights[z]), barH);
-                    ctxAI.fillStyle = th.textBright;
-                    ctxAI.font = '9px -apple-system, system-ui, sans-serif';
-                    ctxAI.fillText(`${AI.zNames[z]}  ${weights[z].toFixed(2)}`, x + 4, y + barH - 5);
+                    aid.barBg[z].setAttribute('x', AI.barX);
+                    aid.barBg[z].setAttribute('y', y);
+                    aid.barBg[z].setAttribute('width', AI.barW);
+                    aid.barBg[z].setAttribute('fill', th.gridA);
+                    aid.barFill[z].setAttribute('x', AI.barX);
+                    aid.barFill[z].setAttribute('y', y);
+                    aid.barFill[z].setAttribute('width', Math.max(1, AI.barW * weights[z]));
+                    aid.barFill[z].setAttribute('fill', AI.zColors[z]);
+                    aid.barLabels[z].setAttribute('y', y + barH - 5);
+                    aid.barLabels[z].setAttribute('fill', th.textBright);
+                    aid.barLabels[z].textContent = `${AI.zNames[z]}  ${weights[z].toFixed(2)}`;
                 }
             }
 
             function drawAIDiscrete() {
-                vizClearCanvas(ctxAI, cvsAI);
                 const th = getVizTheme();
 
-                ctxAI.strokeStyle = th.axis;
-                ctxAI.lineWidth = 1;
-                ctxAI.beginPath();
-                ctxAI.moveTo(AI.leftX0, AI.plotTop);
-                ctxAI.lineTo(AI.leftX0, AI.plotBottom);
-                ctxAI.lineTo(AI.leftX1, AI.plotBottom);
-                ctxAI.stroke();
-
-                ctxAI.fillStyle = th.text;
-                ctxAI.font = '11px -apple-system, system-ui, sans-serif';
-                ctxAI.fillText('subscription state', AI.leftX0, AI.plotTop - 14);
-                ctxAI.fillText('t = 0', AI.leftX0, AI.plotBottom + 16);
-                ctxAI.fillText('t = 1', AI.leftX1 - 18, AI.plotBottom + 16);
+                aid.axes.setAttribute('d',
+                    `M ${AI.leftX0} ${AI.plotTop} L ${AI.leftX0} ${AI.plotBottom} L ${AI.leftX1} ${AI.plotBottom}`);
+                aid.axes.setAttribute('stroke', th.axis);
+                aid.axisTitle.setAttribute('fill', th.text);
+                aid.t0Label.setAttribute('fill', th.text);
+                aid.t1Label.setAttribute('fill', th.text);
 
                 for (let s = 0; s < 27; s++) {
-                    const y = aiStateBaseY(s);
-                    ctxAI.strokeStyle = s % 2 === 0 ? th.gridA : th.gridB;
-                    ctxAI.beginPath();
-                    ctxAI.moveTo(AI.leftX0, y);
-                    ctxAI.lineTo(AI.leftX1, y);
-                    ctxAI.stroke();
-                    if (s === 0 || s === 13 || s === 26 || aiSpend(s) !== aiSpend(s - 1)) {
-                        ctxAI.fillStyle = th.textMuted;
-                        ctxAI.font = '9px -apple-system, system-ui, sans-serif';
-                        ctxAI.fillText(aiLabel(s), 4, y + 3);
-                    }
+                    aid.gridLines[s].setAttribute('stroke', s % 2 === 0 ? th.gridA : th.gridB);
                 }
+                aid.stateLabels.forEach(el => el.setAttribute('fill', th.textMuted));
 
-                for (const traj of aiTrajectories) {
-                    ctxAI.strokeStyle = AI.zColors[traj.z];
-                    ctxAI.globalAlpha = vizAlpha(0.55, 'trace');
-                    ctxAI.lineWidth = 1.2;
-                    ctxAI.beginPath();
-                    const pts = traj.pts;
-                    let px = aiTToX(pts[0].t);
-                    let py = aiStateY(pts[0].s, pts[0].jitter);
-                    ctxAI.moveTo(px, py);
-                    for (let i = 1; i < pts.length; i++) {
-                        const x = aiTToX(pts[i].t);
-                        const y = aiStateY(pts[i].s, pts[i].jitter);
-                        ctxAI.lineTo(x, py);
-                        ctxAI.lineTo(x, y);
-                        px = x;
-                        py = y;
-                    }
-                    ctxAI.stroke();
-                    ctxAI.globalAlpha = 1;
-                }
+                aiTrajectories.forEach((traj, i) => {
+                    aid.trajPaths[i].setAttribute('stroke', AI.zColors[traj.z]);
+                    aid.trajPaths[i].setAttribute('stroke-opacity', vizAlpha(0.55, 'trace'));
+                });
 
                 if (aiHover.active) {
                     const t = aiHover.t;
@@ -3210,53 +3466,58 @@
                     const tX = aiTToX(t);
                     const step = Math.min(Math.round(t * AI.nSteps), AI.nSteps);
                     const yObs = aiStateY(sObs, 0);
+                    const rowH = AI.plotH / 26;
 
-                    ctxAI.fillStyle = th.highlightFill;
-                    ctxAI.fillRect(AI.leftX0, aiStateBaseY(sObs) - (AI.plotH / 52), AI.plotW, AI.plotH / 26);
+                    aid.rowHighlight.setAttribute('x', AI.leftX0);
+                    aid.rowHighlight.setAttribute('y', aiStateBaseY(sObs) - rowH / 2);
+                    aid.rowHighlight.setAttribute('width', AI.plotW);
+                    aid.rowHighlight.setAttribute('height', rowH);
+                    aid.rowHighlight.setAttribute('fill', th.highlightFill);
 
                     for (let z = 0; z < 3; z++) {
-                        const col = AI.zColors[z];
-                        ctxAI.fillStyle = col;
-                        ctxAI.globalAlpha = vizAlpha(0.35, 'hump');
                         for (let s = 0; s < 27; s++) {
                             const p = aiPmfHistory[z][step][s];
-                            if (p < 0.002) continue;
-                            const y = aiStateBaseY(s) + (z - 1) * 2;
-                            const w = p * AI.maxHump;
-                            ctxAI.fillRect(tX, y - 1.5, w, 3);
+                            const rect = aid.humpRects[z][s];
+                            if (p < 0.002) {
+                                rect.setAttribute('visibility', 'hidden');
+                            } else {
+                                const y = aiStateBaseY(s) + (z - 1) * 2;
+                                rect.setAttribute('x', tX);
+                                rect.setAttribute('y', y - 1.5);
+                                rect.setAttribute('width', p * AI.maxHump);
+                                rect.setAttribute('fill', AI.zColors[z]);
+                                rect.setAttribute('fill-opacity', vizAlpha(0.35, 'hump'));
+                                rect.setAttribute('visibility', 'visible');
+                            }
                         }
-                        ctxAI.globalAlpha = 1;
                     }
 
-                    ctxAI.strokeStyle = th.text;
-                    ctxAI.lineWidth = 1.5;
-                    ctxAI.setLineDash([5, 4]);
-                    ctxAI.beginPath();
-                    ctxAI.moveTo(tX, AI.plotTop);
-                    ctxAI.lineTo(tX, AI.plotBottom);
-                    ctxAI.stroke();
-                    ctxAI.setLineDash([]);
+                    aid.probeLine.setAttribute('x1', tX);
+                    aid.probeLine.setAttribute('y1', AI.plotTop);
+                    aid.probeLine.setAttribute('x2', tX);
+                    aid.probeLine.setAttribute('y2', AI.plotBottom);
+                    aid.probeLine.setAttribute('stroke', th.text);
 
                     const post = aiPosterior(sObs, t);
-                    ctxAI.beginPath();
-                    ctxAI.arc(tX, yObs, 8, 0, Math.PI * 2);
-                    ctxAI.fillStyle = aiBlendColor(post);
-                    ctxAI.fill();
-                    ctxAI.strokeStyle = th.dotStroke;
-                    ctxAI.lineWidth = 1.5;
-                    ctxAI.stroke();
+                    aid.probeDot.setAttribute('cx', tX);
+                    aid.probeDot.setAttribute('cy', yObs);
+                    aid.probeDot.setAttribute('fill', aiBlendColor(post));
+                    aid.probeDot.setAttribute('stroke', th.dotStroke);
+                    aid.probeDot.setAttribute('stroke-width', 1.5);
 
-                    drawAIBarChart(post, AI.barX, AI.plotTop + 8);
+                    updateAIBarChart(post);
 
-                    ctxAI.fillStyle = th.textBright;
-                    ctxAI.font = '11px -apple-system, system-ui, sans-serif';
-                    ctxAI.fillText(aiLabel(sObs), AI.leftX0 + 4, AI.plotTop - 6);
-                    ctxAI.fillStyle = th.textBright;
-                    drawCanvasTextWithSubscripts(ctxAI, (AI.leftX0 + AI.leftX1) / 2, 18, [
+                    aid.stateObsLabel.setAttribute('fill', th.textBright);
+                    aid.stateObsLabel.textContent = aiLabel(sObs);
+                    setSvgTextWithSubscripts(aid.headerText, (AI.leftX0 + AI.leftX1) / 2, 18, [
                         { text: 'p(SWE | x', sub: false },
                         { text: 't', sub: true },
                         { text: `, t) = ${post[1].toFixed(2)}`, sub: false }
-                    ], 13, 9);
+                    ], 13, 9, th.textBright);
+
+                    aid.hoverG.setAttribute('visibility', 'visible');
+                } else {
+                    aid.hoverG.setAttribute('visibility', 'hidden');
                 }
             }
 
@@ -3264,6 +3525,9 @@
                 drawAIDiscrete();
                 requestAnimationFrame(loopAI);
             }
+
+            buildAIDiscreteSvg();
+            registerVizRefresh(drawAIDiscrete);
             loopAI();
         }
 
