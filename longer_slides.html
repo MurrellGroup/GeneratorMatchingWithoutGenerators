@@ -259,6 +259,45 @@
             max-width: 100%;
         }
 
+        .marginal-svg,
+        .viz-svg {
+            display: block;
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            margin: 0 auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: crosshair;
+            font-family: "Space Grotesk", -apple-system, system-ui, sans-serif;
+        }
+
+        .viz-svg--wide {
+            max-width: 1120px;
+        }
+
+        .viz-svg--sim {
+            cursor: crosshair;
+        }
+
+        .marginal-svg {
+            cursor: default;
+        }
+
+        .marginal-svg .marg-trail,
+        .viz-svg .viz-trail {
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            shape-rendering: geometricPrecision;
+            vector-effect: non-scaling-stroke;
+        }
+
+        .marginal-svg .marg-dot,
+        .viz-svg .viz-dot {
+            shape-rendering: geometricPrecision;
+        }
+
         /* Collapsible plot settings (title slide) */
         .viz-settings-wrap {
             position: fixed;
@@ -1019,15 +1058,19 @@
             </div>
         </div>
 
-        <!-- SLIDE 20: Marginal KDE Comparison -->
+        <!-- SLIDE 20: Marginal Point Cloud Comparison -->
         <div class="slide" data-slide="20">
             <div class="slide-content">
                 <h2>Same Marginal $p(x_t \mid t)$ for All Three Processes</h2>
-                <p style="font-size: 1rem; margin-bottom: 0.4rem;">500 particles with identical starts — KDE isolines of the current cloud at each $t$.</p>
+                <p style="font-size: 1rem; margin-bottom: 0.4rem;">500 particles with identical starts — marginal point cloud at each $t$ (should match across panels).</p>
                 <div class="interactive-figure" style="padding: 0.75rem 1rem; margin-top: 0;">
-                    <canvas id="marginalKdeCanvas" width="800" height="468"></canvas>
+                    <svg id="marginalSvg" class="marginal-svg viz-svg" viewBox="0 0 800 468" role="img" aria-label="Marginal point cloud comparison"></svg>
+                    <div class="controls" style="margin-top: 0.5rem; padding: 8px;">
+                        <button id="btnMargPlay" class="secondary" title="Play animation">▶</button>
+                    </div>
                     <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
-                        Conditional &nbsp;|&nbsp; Resampled ($\Delta t = 0.01$) &nbsp;|&nbsp; Posterior averaged — contours should align at every $t$
+                        <span style="color:#c62828; font-weight:bold;">Red</span> / <span style="color:#e65100; font-weight:bold;">orange</span> / <span style="color:#2e7d32; font-weight:bold;">green</span> = 25 sample paths &nbsp;|&nbsp;
+                        blue dots = marginal samples (should align across panels)
                     </div>
                 </div>
             </div>
@@ -1593,6 +1636,36 @@
             const th = getVizTheme();
             document.documentElement.style.setProperty('--viz-canvas-bg', th.canvasBg);
             document.querySelectorAll('canvas').forEach(c => { c.style.background = th.canvasBg; });
+            document.querySelectorAll('.viz-svg, .marginal-svg').forEach(s => { s.style.background = th.canvasBg; });
+        }
+
+        const SVG_NS = 'http://www.w3.org/2000/svg';
+        function svgEl(tag, attrs = {}) {
+            const el = document.createElementNS(SVG_NS, tag);
+            for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+            return el;
+        }
+
+        function snapParticleAtT1(p, mode, targets, center, sigma) {
+            const weights = getPosteriorWeights(p, targets, 0.9999, center, sigma);
+            if (mode === 'average') {
+                let x = 0, y = 0;
+                targets.forEach((z, i) => { x += weights[i] * z.x; y += weights[i] * z.y; });
+                p.x = x;
+                p.y = y;
+            } else {
+                if (!p.currentZ) {
+                    let r = Math.random(), cum = 0;
+                    for (let i = 0; i < weights.length; i++) {
+                        cum += weights[i];
+                        if (r <= cum) { p.currentZ = targets[i]; break; }
+                    }
+                }
+                if (p.currentZ) {
+                    p.x = p.currentZ.x;
+                    p.y = p.currentZ.y;
+                }
+            }
         }
 
         const vizRefreshCallbacks = [];
@@ -1748,100 +1821,6 @@
                 });
             }
             return seeds;
-        }
-
-        function buildKdeGrid(particles, nx, ny, bounds, bandwidth) {
-            const { xMin, xMax, yMin, yMax } = bounds;
-            const grid = new Float64Array(nx * ny);
-            const wx = (xMax - xMin) / (nx - 1);
-            const wy = (yMax - yMin) / (ny - 1);
-            const cell = Math.min(wx, wy);
-            const radius = Math.ceil(3 * bandwidth / cell);
-            const inv2h2 = 1 / (2 * bandwidth * bandwidth);
-            const r2max = 9 * bandwidth * bandwidth;
-
-            for (const p of particles) {
-                const gi = (p.x - xMin) / wx;
-                const gj = (p.y - yMin) / wy;
-                const i0 = Math.max(0, Math.floor(gi) - radius);
-                const i1 = Math.min(nx - 1, Math.floor(gi) + radius);
-                const j0 = Math.max(0, Math.floor(gj) - radius);
-                const j1 = Math.min(ny - 1, Math.floor(gj) + radius);
-                for (let j = j0; j <= j1; j++) {
-                    for (let i = i0; i <= i1; i++) {
-                        const dx = (i - gi) * wx;
-                        const dy = (j - gj) * wy;
-                        const d2 = dx * dx + dy * dy;
-                        if (d2 <= r2max) grid[j * nx + i] += Math.exp(-d2 * inv2h2);
-                    }
-                }
-            }
-            return grid;
-        }
-
-        const MS_SEGMENTS = [
-            [], [[0, 3]], [[1, 0]], [[1, 3]], [[2, 1]], [[0, 3], [1, 2]], [[0, 1]], [[1, 2]],
-            [[2, 3]], [[0, 2]], [[0, 1], [2, 3]], [[0, 2], [1, 3]], [[1, 2]], [[0, 3]], [[1, 0]], []
-        ];
-
-        function msEdgePoint(edge, v00, v10, v11, v01, level, x, y, dx, dy) {
-            const t01 = (a, b) => {
-                const d = b - a;
-                return Math.abs(d) < 1e-12 ? 0.5 : (level - a) / d;
-            };
-            if (edge === 0) return [x + t01(v00, v10) * dx, y];
-            if (edge === 1) return [x + dx, y + t01(v10, v11) * dy];
-            if (edge === 2) return [x + t01(v01, v11) * dx, y + dy];
-            return [x, y + t01(v00, v01) * dy];
-        }
-
-        function drawKdeContours(ctx, grid, nx, ny, bounds, panel, levels, colorFn) {
-            const { xMin, xMax, yMin, yMax } = bounds;
-            const dx = (xMax - xMin) / (nx - 1);
-            const dy = (yMax - yMin) / (ny - 1);
-            let maxV = 0;
-            for (let k = 0; k < grid.length; k++) if (grid[k] > maxV) maxV = grid[k];
-            if (maxV <= 1e-12) return;
-
-            const toScreen = (wx, wy) => ({
-                x: panel.left + (wx - xMin) / (xMax - xMin) * panel.width,
-                y: panel.top + (wy - yMin) / (yMax - yMin) * panel.height
-            });
-
-            for (let li = 0; li < levels.length; li++) {
-                const level = maxV * levels[li];
-                ctx.beginPath();
-                for (let j = 0; j < ny - 1; j++) {
-                    for (let i = 0; i < nx - 1; i++) {
-                        const v00 = grid[j * nx + i];
-                        const v10 = grid[j * nx + i + 1];
-                        const v11 = grid[(j + 1) * nx + i + 1];
-                        const v01 = grid[(j + 1) * nx + i];
-                        let idx = 0;
-                        if (v00 >= level) idx |= 1;
-                        if (v10 >= level) idx |= 2;
-                        if (v11 >= level) idx |= 4;
-                        if (v01 >= level) idx |= 8;
-                        const segs = MS_SEGMENTS[idx];
-                        if (!segs.length) continue;
-                        const x = xMin + i * dx;
-                        const y = yMin + j * dy;
-                        for (let s = 0; s < segs.length; s += 2) {
-                            const p1 = msEdgePoint(segs[s], v00, v10, v11, v01, level, x, y, dx, dy);
-                            const p2 = msEdgePoint(segs[s + 1], v00, v10, v11, v01, level, x, y, dx, dy);
-                            const a = toScreen(p1[0], p1[1]);
-                            const b = toScreen(p2[0], p2[1]);
-                            ctx.moveTo(a.x, a.y);
-                            ctx.lineTo(b.x, b.y);
-                        }
-                    }
-                }
-                ctx.strokeStyle = colorFn(li, levels.length);
-                ctx.lineWidth = li === levels.length - 1 ? 1.5 : 1;
-                ctx.globalAlpha = vizAlpha(0.3 + 0.18 * li, 'hump');
-                ctx.stroke();
-                ctx.globalAlpha = 1;
-            }
         }
 
         // =========================================
@@ -3289,23 +3268,23 @@
         }
 
         // =========================================
-        // MARGINAL KDE: THREE-STACK COMPARISON (slide 20)
+        // MARGINAL SVG: THREE-STACK POINT CLOUD (slide 20)
         // =========================================
-        const cvsMarg = document.getElementById('marginalKdeCanvas');
-        if (cvsMarg) {
-            const ctxMarg = cvsMarg.getContext('2d');
+        const marginalSvg = document.getElementById('marginalSvg');
+        const btnMargPlay = document.getElementById('btnMargPlay');
+        if (marginalSvg) {
             const margDt = 1 / 1000;
             const MARG_BOUNDS = { xMin: 35, xMax: 785, yMin: 30, yMax: 370 };
-            const MARG_BW = 24;
-            const MARG_NX = 52;
-            const MARG_NY = 28;
-            const MARG_LEVELS = [0.22, 0.42, 0.62, 0.82];
+            const MARG_TRAIL_COLORS = ['#c62828', '#e65100', '#2e7d32'];
+            const MARG_TRAIL_STEP = 20;
             const MARG_PANELS = [
                 { label: 'Conditional', mode: 'resample', interval: 1000 },
-                { label: '0.01', mode: 'resample', interval: 10 },
+                { label: '0.05', mode: 'resample', interval: 50 },
                 { label: 'Smooth', mode: 'average' }
             ];
             const MARG_LAYOUT = { plotLeft: 86, plotRight: 788, firstTop: 28, panelH: 132, gap: 10 };
+
+            function svgMargEl(tag, attrs = {}) { return svgEl(tag, attrs); }
 
             function margPanelRect(i) {
                 const top = MARG_LAYOUT.firstTop + i * (MARG_LAYOUT.panelH + MARG_LAYOUT.gap);
@@ -3318,121 +3297,252 @@
                 };
             }
 
+            function margToSvg(wx, wy, panel) {
+                return {
+                    x: panel.left + (wx - MARG_BOUNDS.xMin) / (MARG_BOUNDS.xMax - MARG_BOUNDS.xMin) * panel.width,
+                    y: panel.top + (wy - MARG_BOUNDS.yMin) / (MARG_BOUNDS.yMax - MARG_BOUNDS.yMin) * panel.height
+                };
+            }
+
             function initMargParticlesFromSeeds(seeds) {
-                return MARG_PANELS.map(cfg => seeds.map((seed, id) => ({
+                return MARG_PANELS.map(() => seeds.map((seed, id) => ({
                     id,
                     x: seed.x,
                     y: seed.y,
+                    history: (id % MARG_TRAIL_STEP === 0) ? [{ x: seed.x, y: seed.y }] : null,
                     currentZ: null,
                     timer: 0
                 })));
             }
 
+            function trailPathD(p, panel) {
+                if (!p.history || p.history.length < 1) return '';
+                const h0 = margToSvg(p.history[0].x, p.history[0].y, panel);
+                let d = `M ${h0.x.toFixed(1)} ${h0.y.toFixed(1)}`;
+                for (let k = 1; k < p.history.length; k++) {
+                    const pt = margToSvg(p.history[k].x, p.history[k].y, panel);
+                    d += ` L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+                }
+                const end = margToSvg(p.x, p.y, panel);
+                d += ` L ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
+                return d;
+            }
+
             const marg = {
                 t: 0,
-                running: true,
+                running: false,
                 seeds: samplePriorSeeds2D(500),
                 panelParticles: null,
-                kdeGrids: MARG_PANELS.map(() => new Float64Array(MARG_NX * MARG_NY))
+                dom: { time: null, panels: [] }
             };
             marg.panelParticles = initMargParticlesFromSeeds(marg.seeds);
 
-            function resetMarginalRun() {
+            function buildMarginalSvg() {
+                marginalSvg.replaceChildren();
+                const defs = svgMargEl('defs');
+                MARG_PANELS.forEach((_, pi) => {
+                    const panel = margPanelRect(pi);
+                    const clip = svgMargEl('clipPath', { id: `margClip${pi}` });
+                    clip.appendChild(svgMargEl('rect', {
+                        x: panel.left, y: panel.top, width: panel.width, height: panel.height
+                    }));
+                    defs.appendChild(clip);
+                });
+                marginalSvg.appendChild(defs);
+
+                marg.dom.time = svgMargEl('text', {
+                    x: 388, y: 16, 'text-anchor': 'middle', 'font-size': 12
+                });
+                marginalSvg.appendChild(marg.dom.time);
+
+                marg.dom.panels = MARG_PANELS.map((cfg, pi) => {
+                    const panel = margPanelRect(pi);
+                    const g = svgMargEl('g', { 'data-panel': pi });
+
+                    const labelEl = svgMargEl('text', {
+                        x: 8,
+                        y: panel.top + panel.height / 2 + 4,
+                        'font-size': 11,
+                        class: 'marg-panel-label'
+                    });
+                    labelEl.textContent = cfg.label;
+                    g.appendChild(labelEl);
+
+                    g.appendChild(svgEl('rect', {
+                        x: panel.left, y: panel.top, width: panel.width, height: panel.height,
+                        fill: 'none', 'stroke-width': 1.5, class: 'marg-frame'
+                    }));
+
+                    let axisLabelEls = [];
+                    if (pi === 0) {
+                        const prior = svgEl('text', {
+                            x: panel.left, y: panel.top - 4, 'font-size': 10, class: 'marg-axis-label'
+                        });
+                        prior.textContent = 'Prior (t=0)';
+                        prior.setAttribute('fill', '#888');
+                        g.appendChild(prior);
+                        axisLabelEls.push(prior);
+                        const data = svgEl('text', {
+                            x: panel.left + panel.width - 44, y: panel.top - 4,
+                            'font-size': 10, class: 'marg-axis-label'
+                        });
+                        data.textContent = 'Data (t=1)';
+                        data.setAttribute('fill', '#888');
+                        g.appendChild(data);
+                        axisLabelEls.push(data);
+                    }
+
+                    const content = svgEl('g', { 'clip-path': `url(#margClip${pi})` });
+
+                    const targetsG = svgEl('g', { class: 'marg-targets' });
+                    const targetEls = simTargets.map(() => {
+                        const c = svgEl('circle', { r: 2.5, class: 'marg-target' });
+                        targetsG.appendChild(c);
+                        return c;
+                    });
+                    content.appendChild(targetsG);
+
+                    const cloudG = svgEl('g', { class: 'marg-cloud' });
+                    const dotEls = marg.seeds.map(() => {
+                        const c = svgEl('circle', { r: 2.2, class: 'marg-dot' });
+                        cloudG.appendChild(c);
+                        return c;
+                    });
+                    content.appendChild(cloudG);
+
+                    const trailsG = svgEl('g', { class: 'marg-trails' });
+                    const trailEls = [];
+                    for (let ti = 0; ti < marg.seeds.length; ti += MARG_TRAIL_STEP) {
+                        const path = svgEl('path', {
+                            class: 'marg-trail',
+                            stroke: MARG_TRAIL_COLORS[pi],
+                            'stroke-width': 1.35
+                        });
+                        trailsG.appendChild(path);
+                        trailEls.push({ path, particleIdx: ti });
+                    }
+                    content.appendChild(trailsG);
+
+                    g.appendChild(content);
+                    marginalSvg.appendChild(g);
+
+                    return { panel, targetEls, trailEls, dotEls, frame: g.querySelector('.marg-frame'), labelEl, axisLabelEls };
+                });
+            }
+
+            function resetMarginalRun(startPlaying = false) {
                 marg.t = 0;
-                marg.running = true;
+                marg.running = startPlaying;
                 marg.panelParticles = initMargParticlesFromSeeds(marg.seeds);
+                if (btnMargPlay) btnMargPlay.textContent = startPlaying ? '⏸' : '▶';
+            }
+
+            function snapMarginalParticlesAtT1() {
+                MARG_PANELS.forEach((cfg, pi) => {
+                    for (const p of marg.panelParticles[pi]) {
+                        snapParticleAtT1(p, cfg.mode, simTargets, PRIOR_CENTER_2, PRIOR_SIGMA_2);
+                        if (p.history) {
+                            const last = p.history[p.history.length - 1];
+                            if (!last || last.x !== p.x || last.y !== p.y) {
+                                p.history.push({ x: p.x, y: p.y });
+                            }
+                        }
+                    }
+                });
             }
 
             function updateMarginalState() {
                 if (!marg.running) return;
                 marg.t = Math.min(1, marg.t + margDt);
                 const t = marg.t;
-                MARG_PANELS.forEach((cfg, pi) => {
-                    const particles = marg.panelParticles[pi];
-                    if (t < 1.0) {
-                        for (const p of particles) {
+                if (t < 1.0) {
+                    const recordHistory = Math.floor(t * 500) % 2 === 0;
+                    MARG_PANELS.forEach((cfg, pi) => {
+                        for (const p of marg.panelParticles[pi]) {
                             advanceParticle2D(
                                 p, cfg.mode, cfg.interval, t, margDt,
                                 simTargets, PRIOR_CENTER_2, PRIOR_SIGMA_2
                             );
+                            if (recordHistory && p.history) {
+                                p.history.push({ x: p.x, y: p.y });
+                            }
                         }
-                    }
-                    marg.kdeGrids[pi] = buildKdeGrid(particles, MARG_NX, MARG_NY, MARG_BOUNDS, MARG_BW);
-                });
-                if (marg.t >= 1.0) marg.running = false;
+                    });
+                }
+                if (marg.t >= 1.0) {
+                    marg.t = 1.0;
+                    snapMarginalParticlesAtT1();
+                    marg.running = false;
+                    if (btnMargPlay) btnMargPlay.textContent = '▶';
+                }
             }
 
-            function drawMarginalKde() {
-                vizClearCanvas(ctxMarg, cvsMarg);
+            function renderMarginalSvg() {
                 const th = getVizTheme();
-                const contourBase = VizSettings.bgMode === 'light' ? '#1565c0' : '#4fc3f7';
+                const cloudFill = VizSettings.bgMode === 'light' ? '#1565c0' : '#4fc3f7';
+                const cloudOpacity = vizAlpha(0.55, 'hump');
+                const trailOpacity = vizAlpha(0.68, 'trace');
 
-                ctxMarg.fillStyle = th.textBright;
-                ctxMarg.font = '12px -apple-system, system-ui, sans-serif';
-                ctxMarg.fillText(`t = ${marg.t.toFixed(2)}`, cvsMarg.width / 2 - 22, 16);
+                marg.dom.time.setAttribute('fill', th.textBright);
+                marg.dom.time.textContent = `t = ${marg.t.toFixed(2)}`;
 
-                MARG_PANELS.forEach((cfg, pi) => {
-                    const panel = margPanelRect(pi);
+                marg.dom.panels.forEach((dom, pi) => {
+                    const panel = dom.panel;
                     const particles = marg.panelParticles[pi];
 
-                    ctxMarg.fillStyle = th.text;
-                    ctxMarg.font = '11px -apple-system, system-ui, sans-serif';
-                    ctxMarg.fillText(cfg.label, 8, panel.top + panel.height / 2 + 4);
+                    dom.frame.setAttribute('stroke', th.axis);
+                    dom.labelEl.setAttribute('fill', th.text);
+                    dom.axisLabelEls.forEach(el => el.setAttribute('fill', th.textMuted));
 
-                    ctxMarg.strokeStyle = th.axis;
-                    ctxMarg.lineWidth = 1;
-                    ctxMarg.strokeRect(panel.left, panel.top, panel.width, panel.height);
-
-                    if (pi === 0) {
-                        ctxMarg.fillStyle = th.textMuted;
-                        ctxMarg.font = '10px -apple-system, system-ui, sans-serif';
-                        ctxMarg.fillText('Prior (t=0)', panel.left, panel.top - 4);
-                        ctxMarg.fillText('Data (t=1)', panel.left + panel.width - 44, panel.top - 4);
-                    }
-
-                    simTargets.forEach(z => {
-                        const sx = panel.left + (z.x - MARG_BOUNDS.xMin) / (MARG_BOUNDS.xMax - MARG_BOUNDS.xMin) * panel.width;
-                        const sy = panel.top + (z.y - MARG_BOUNDS.yMin) / (MARG_BOUNDS.yMax - MARG_BOUNDS.yMin) * panel.height;
-                        ctxMarg.beginPath();
-                        ctxMarg.arc(sx, sy, 2, 0, Math.PI * 2);
-                        ctxMarg.fillStyle = `rgba(79, 195, 247, ${vizAlpha(0.2, 'hump')})`;
-                        ctxMarg.fill();
+                    simTargets.forEach((z, zi) => {
+                        const pt = margToSvg(z.x, z.y, panel);
+                        dom.targetEls[zi].setAttribute('cx', pt.x);
+                        dom.targetEls[zi].setAttribute('cy', pt.y);
+                        dom.targetEls[zi].setAttribute('fill', '#4fc3f7');
+                        dom.targetEls[zi].setAttribute('fill-opacity', vizAlpha(0.45, 'hump'));
                     });
 
-                    drawKdeContours(
-                        ctxMarg, marg.kdeGrids[pi], MARG_NX, MARG_NY,
-                        MARG_BOUNDS, panel, MARG_LEVELS,
-                        () => contourBase
-                    );
+                    dom.trailEls.forEach(({ path, particleIdx }) => {
+                        const p = particles[particleIdx];
+                        path.setAttribute('d', trailPathD(p, panel));
+                        path.setAttribute('stroke-opacity', trailOpacity);
+                    });
 
-                    ctxMarg.fillStyle = th.textMuted;
-                    ctxMarg.globalAlpha = vizAlpha(0.35, 'trace');
-                    for (const p of particles) {
-                        const sx = panel.left + (p.x - MARG_BOUNDS.xMin) / (MARG_BOUNDS.xMax - MARG_BOUNDS.xMin) * panel.width;
-                        const sy = panel.top + (p.y - MARG_BOUNDS.yMin) / (MARG_BOUNDS.yMax - MARG_BOUNDS.yMin) * panel.height;
-                        ctxMarg.fillRect(sx, sy, 1, 1);
-                    }
-                    ctxMarg.globalAlpha = 1;
+                    dom.dotEls.forEach((circle, i) => {
+                        const p = particles[i];
+                        const pt = margToSvg(p.x, p.y, panel);
+                        circle.setAttribute('cx', pt.x);
+                        circle.setAttribute('cy', pt.y);
+                        circle.setAttribute('fill', cloudFill);
+                        circle.setAttribute('fill-opacity', cloudOpacity);
+                    });
                 });
 
-                if (!marg.running && marg.t >= 1.0) {
-                    ctxMarg.fillStyle = th.textMuted;
-                    ctxMarg.font = '11px -apple-system, system-ui, sans-serif';
-                    ctxMarg.fillText('(click canvas to replay)', cvsMarg.width / 2 - 58, cvsMarg.height - 6);
-                }
             }
 
             function loopMarginal() {
                 updateMarginalState();
-                drawMarginalKde();
+                renderMarginalSvg();
                 requestAnimationFrame(loopMarginal);
             }
 
-            cvsMarg.addEventListener('click', resetMarginalRun);
-            MARG_PANELS.forEach((cfg, pi) => {
-                marg.kdeGrids[pi] = buildKdeGrid(marg.panelParticles[pi], MARG_NX, MARG_NY, MARG_BOUNDS, MARG_BW);
-            });
-            registerVizRefresh(drawMarginalKde);
+            buildMarginalSvg();
+            resetMarginalRun(false);
+            if (btnMargPlay) {
+                btnMargPlay.addEventListener('click', () => {
+                    if (marg.running) {
+                        marg.running = false;
+                        btnMargPlay.textContent = '▶';
+                    } else {
+                        if (marg.t >= 1.0) resetMarginalRun(true);
+                        else {
+                            marg.running = true;
+                            btnMargPlay.textContent = '⏸';
+                        }
+                    }
+                });
+            }
+            registerVizRefresh(renderMarginalSvg);
             loopMarginal();
         }
 
