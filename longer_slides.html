@@ -376,6 +376,22 @@
             background: linear-gradient(135deg, var(--accent-color) 0%, #ec407a 100%);
         }
 
+        .controls.sim-controls {
+            gap: 8px;
+        }
+
+        .controls.sim-controls .sim-mode-btn {
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            background: #e8ecf0;
+            color: var(--text-color);
+        }
+
+        .controls.sim-controls .sim-mode-btn.active {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #29b6f6 100%);
+            color: #1a1a2e;
+        }
+
         input[type=range] {
             vertical-align: middle;
             accent-color: var(--primary-color);
@@ -986,16 +1002,13 @@
                     <h4>Watch paths change as resampling interval decreases</h4>
                     <canvas id="simCanvas" width="800" height="400"></canvas>
                     
-                    <div class="controls">
-                        <button id="btnAutoPlay" class="secondary">▶</button>
-                        <button id="btnToggleMode" class="active">Mode: Conditional Process</button>
-                    </div>
-                    
-                    <div class="controls" id="resampleControls" style="background: rgba(79, 195, 247, 0.1);">
-                        <label>Resample Interval: 
-                            <input type="range" id="stepSizeSlider" min="1" max="100" value="20">
-                        </label>
-                        <span id="stepDisplay">0.020</span>
+                    <div class="controls sim-controls">
+                        <button id="btnAutoPlay" class="secondary" title="Play full sequence">▶</button>
+                        <button type="button" class="sim-mode-btn active" data-mode="0">Conditional</button>
+                        <button type="button" class="sim-mode-btn" data-mode="1">0.1</button>
+                        <button type="button" class="sim-mode-btn" data-mode="2">0.01</button>
+                        <button type="button" class="sim-mode-btn" data-mode="3">0.001</button>
+                        <button type="button" class="sim-mode-btn" data-mode="4">Smooth</button>
                     </div>
 
                     <div class="caption" id="simCaption">
@@ -1923,19 +1936,15 @@
         const ctx2 = cvs2.getContext('2d');
         const btnResetSim = document.getElementById('btnResetSim');
         const btnRandomizeSim = document.getElementById('btnRandomizeSim');
-        const btnToggleMode = document.getElementById('btnToggleMode');
         const btnAutoPlay = document.getElementById('btnAutoPlay');
-        const resampleControls = document.getElementById('resampleControls');
-        const stepSizeSlider = document.getElementById('stepSizeSlider');
-        const stepDisplay = document.getElementById('stepDisplay');
-        //const simCaption = document.getElementById('simCaption');
+        const simModeBtns = document.querySelectorAll('.sim-mode-btn');
         const dt = 1 / 1000; // Slow time step
-        const AUTO_STAGES = [
-            { mode: 'resample', interval: 1000 },
-            { mode: 'resample', interval: 100 },
-            { mode: 'resample', interval: 10 },
-            { mode: 'resample', interval: 1 },
-            { mode: 'average' }
+        const SIM_MODES = [
+            { mode: 'resample', interval: 1000, label: 'Conditional', overlay: 'Conditional process' },
+            { mode: 'resample', interval: 100, label: '0.1', overlay: 'Resampled (interval 0.1)' },
+            { mode: 'resample', interval: 10, label: '0.01', overlay: 'Resampled (interval 0.01)' },
+            { mode: 'resample', interval: 1, label: '0.001', overlay: 'Resampled (interval 0.001)' },
+            { mode: 'average', label: 'Smooth', overlay: 'Posterior averaged (smooth)' }
         ];
 
         // Fixed Targets for Sim
@@ -1963,8 +1972,30 @@
             resampleInterval: 100,
             animId: null,
             autoPlayActive: false,
-            autoStageIndex: 0
+            autoStageIndex: 0,
+            currentModeIndex: 0
         };
+
+        function updateSimModeUI(activeIdx) {
+            sim.currentModeIndex = activeIdx;
+            simModeBtns.forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.mode, 10) === activeIdx);
+            });
+        }
+
+        function applySimMode(idx, { start = true } = {}) {
+            const m = SIM_MODES[idx];
+            if (!m) return;
+            sim.autoStageIndex = idx;
+            if (m.mode === 'resample') {
+                sim.mode = 'resample';
+                sim.resampleInterval = m.interval;
+            } else {
+                sim.mode = 'average';
+            }
+            updateSimModeUI(idx);
+            if (start) startSimFromSeeds();
+        }
 
         function startSimFromSeeds() {
             sim.running = false;
@@ -2034,47 +2065,8 @@
             startSimFromSeeds();
         }
 
-        function setSimMode(mode, interval) {
-            if (mode === 'resample') {
-                sim.mode = 'resample';
-                // Must display interval in the button text
-                if (interval === 1000) {
-                    btnToggleMode.textContent = "Mode: Conditional Proces";
-                } else if (interval === 100) {
-                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.1)";
-                } else if (interval === 10) {
-                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.01)";
-                } else if (interval === 1) {
-                    btnToggleMode.textContent = "Mode: Resampled (interval: 0.001)";
-                }
-                btnToggleMode.classList.remove('active');
-                // Keep controls visible; enable slider
-                resampleControls.style.display = 'flex';
-                stepSizeSlider.disabled = false;
-                resampleControls.style.opacity = '1';
-            } else {
-                sim.mode = 'average';
-                btnToggleMode.textContent = "Mode: Averaged (Smooth)";
-                btnToggleMode.classList.add('active');
-                // Keep controls visible; disable slider to avoid layout jump
-                resampleControls.style.display = 'flex';
-                stepSizeSlider.disabled = true;
-                resampleControls.style.opacity = '0.5';
-            }
-        }
-
         function applyStageAndStart(idx) {
-            const stage = AUTO_STAGES[idx];
-            if (!stage) return;
-            if (stage.mode === 'resample') {
-                setSimMode('resample', stage.interval);
-                sim.resampleInterval = stage.interval;
-                stepSizeSlider.value = String(stage.interval);
-                stepDisplay.textContent = parseFloat(stage.interval * dt).toFixed(3);
-            } else {
-                setSimMode('average', stage.interval);
-            }
-            startSimFromSeeds();
+            applySimMode(idx);
         }
 
         function updateSimState() {
@@ -2254,23 +2246,21 @@
             if(sim.running || sim.t < 1.0) {
                 sim.animId = requestAnimationFrame(simLoop);
             } else {
-                // Handle auto-play stage transitions
                 if (sim.autoPlayActive) {
-                    sim.autoStageIndex = (sim.autoStageIndex + 1) % AUTO_STAGES.length;
-                    applyStageAndStart(sim.autoStageIndex);
+                    if (sim.autoStageIndex < SIM_MODES.length - 1) {
+                        sim.autoStageIndex++;
+                        applyStageAndStart(sim.autoStageIndex);
+                    } else {
+                        sim.autoPlayActive = false;
+                        btnAutoPlay.textContent = '▶';
+                    }
                 }
             }
         }
 
         function drawAutoStageOverlay() {
             if (!sim.autoPlayActive) return;
-            let label = '';
-            switch (sim.autoStageIndex) {
-                case 0: label = 'Resampled, slow switching'; break;
-                case 1: label = 'Resampled, medium switching'; break;
-                case 2: label = 'Resampled, fast switching'; break;
-                case 3: label = 'Posterior averaged'; break;
-            }
+            const label = SIM_MODES[sim.autoStageIndex]?.overlay;
             if (!label) return;
             const th = getVizTheme();
             ctx2.save();
@@ -2295,14 +2285,13 @@
         //btnResetSim.addEventListener('click', startSimFromSeeds);
         //btnRandomizeSim.addEventListener('click', randomizeAndStartSim);
         
-        btnToggleMode.addEventListener('click', () => {
-            if(sim.mode === 'average') setSimMode('resample'); else setSimMode('average');
-            startSimFromSeeds();
-        });
-
-        stepSizeSlider.addEventListener('input', (e) => {
-            sim.resampleInterval = parseInt(e.target.value);
-            stepDisplay.textContent = parseFloat(e.target.value * dt).toFixed(3);
+        simModeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.mode, 10);
+                sim.autoPlayActive = false;
+                btnAutoPlay.textContent = '▶';
+                applySimMode(idx);
+            });
         });
 
         btnAutoPlay.addEventListener('click', () => {
@@ -2312,10 +2301,9 @@
                 sim.autoStageIndex = 0;
                 applyStageAndStart(sim.autoStageIndex);
             } else {
-                // Pause both sequence cycling and the simulation trajectory
                 sim.autoPlayActive = false;
                 sim.running = false;
-                btnAutoPlay.textContent = '▶ Play Sequence';
+                btnAutoPlay.textContent = '▶';
             }
         });
 
@@ -2334,10 +2322,7 @@
 
         // Init (randomize once, build particles, set defaults; do NOT start running)
         randomizeInitialSeeds(80);
-        setSimMode('resample');
-        sim.resampleInterval = 100;
-        stepSizeSlider.value = '100';
-        stepDisplay.textContent = parseFloat(100 * dt).toFixed(3);
+        applySimMode(0, { start: false });
         buildParticlesFromSeeds();
         registerVizRefresh(drawSim);
         loopSimDisplay();
