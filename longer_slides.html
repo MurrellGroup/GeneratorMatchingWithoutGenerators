@@ -1683,8 +1683,102 @@
             </div>
         </div>
 
-        <!-- SLIDE 36: Parameterizations -->
+        <!-- SLIDE 36: Brownian bridge setup -->
         <div class="slide" data-slide="36">
+            <div class="slide-content">
+                <h2>Example: Brownian Bridge (SDE)</h2>
+
+                <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                    Replace straight-line interpolation with a <strong>stochastic bridge</strong> pinned at a datapoint $x_1^z$ at $t=1$.
+                    The drift pulls toward the endpoint; diffusion keeps paths random but still hits $x_1^z$ at $t=1$.
+                </p>
+
+                <div class="equation" style="font-size: 1.15rem; margin: 0.75rem 0;">
+                    $$dx_t = \frac{x_1^z - x_t}{1-t}\,dt + \sigma\,dW_t,
+                    \qquad x_0 \sim p(x_0), \quad x_1^z \sim p(x_1 \mid z)$$
+                </div>
+
+                <div class="two-col">
+                    <div>
+                        <h3>Training</h3>
+                        <ul class="compact-list">
+                            <li>Sample $x_0$, $x_1^z$, and $t \sim \mathcal{U}(0,1)$</li>
+                            <li>Simulate the bridge SDE in tiny steps from $0 \to t$ → noisy $x_t$</li>
+                            <li>Regress $\hat x_1(t, x_t) \approx x_1^z$ (same $x_1$-prediction target as flow matching)</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h3>Sampling</h3>
+                        <ul class="compact-list">
+                            <li>Draw $x_0 \sim p(x_0)$</li>
+                            <li>Integrate the learned SDE with $\hat x_1$ in place of $x_1^z$</li>
+                            <li>Stochastic paths end at $t=1$ with data-like marginals</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="key-point">
+                    <strong>Closed-form bridge marginals</strong> $p(x_t \mid x_0, x_1^z, t)=\mathcal{N}\big((1-t)x_0 + t x_1^z,\; t(1-t)\sigma^2\big)$ —
+                    but training simulates the SDE anyway to show what stepping looks like.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 37: Brownian bridge training -->
+        <div class="slide" data-slide="37">
+            <div class="slide-content">
+                <h2>Interactive: Brownian Bridge Training</h2>
+                <p style="font-size: 0.95rem; margin-bottom: 0.35rem;">
+                    SDE steps from $x_0$ to sampled time $t$ (tiny Euler–Maruyama steps). The dashed line tracks $x_1^z$ while stepping; after $x_t$ is reached the model predicts $\hat x_1$.
+                </p>
+                <div class="interactive-figure" style="padding: 0.75rem 1rem; margin-top: 0;">
+                    <svg id="bbTrainVizSvg" class="viz-svg viz-svg--fm" viewBox="0 0 720 480" role="img" aria-label="Brownian bridge training"></svg>
+                    <svg id="bbTrainLossSvg" class="viz-svg" viewBox="0 0 720 96" role="img" aria-label="Brownian bridge training loss" style="margin-top: 4px; height: 72px;"></svg>
+                    <div class="controls" style="margin-top: 0.5rem; padding: 8px; flex-wrap: wrap; gap: 8px; align-items: center;">
+                        <button id="btnBbTrainPlay" class="secondary" title="Play / pause">▶</button>
+                        <button id="btnBbTrainReset" class="secondary" title="Reset model">Reset</button>
+                        <label style="font-size: 0.85rem;">Speed
+                            <input type="range" id="bbTrainSpeed" min="0.25" max="200" step="0.25" value="10" style="width: 90px; vertical-align: middle;">
+                            <span id="bbTrainSpeedVal">10×</span>
+                        </label>
+                        <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="bbTrainShowDemo" checked> Step animation
+                        </label>
+                        <span id="bbTrainStats" style="font-size: 0.85rem; color: var(--text-muted); margin-left: auto;">steps: 0 &nbsp;|&nbsp; loss: —</span>
+                    </div>
+                    <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
+                        <span style="color:#78909c; font-weight:bold;">Grey path</span> = bridge SDE to $x_t$ only &nbsp;|&nbsp;
+                        <span style="color:#ffb74d; font-weight:bold;">Orange</span> = $x_1^z$ &nbsp;|&nbsp;
+                        <span style="color:#ef5350; font-weight:bold;">Red arrow</span> = $\hat x_1$
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 38: Brownian bridge sampling -->
+        <div class="slide" data-slide="38">
+            <div class="slide-content">
+                <h2>Interactive: Brownian Bridge Sampling</h2>
+                <p style="font-size: 0.95rem; margin-bottom: 0.35rem;">
+                    Integrate the learned bridge SDE from $x_0 \sim p(x_0)$ with $\hat x_1(t,x_t)$ in the drift. Each click draws a fresh stochastic path — no deterministic flow lines.
+                </p>
+                <div class="interactive-figure" style="padding: 0.75rem 1rem; margin-top: 0;">
+                    <svg id="bbSampleVizSvg" class="viz-svg viz-svg--fm" viewBox="0 0 720 480" role="img" aria-label="Brownian bridge sampling"></svg>
+                    <div class="controls" style="margin-top: 0.5rem; padding: 8px; flex-wrap: wrap; gap: 8px;">
+                        <button id="btnBbSampleOne" class="secondary">Sample path</button>
+                        <button id="btnBbSampleBurst" class="secondary">Sample ×10</button>
+                        <button id="btnBbSampleClear" class="secondary">Clear</button>
+                        <span id="bbSampleStats" style="font-size: 0.85rem; color: var(--text-muted); margin-left: auto;">paths: 0 &nbsp;|&nbsp; training samples: —</span>
+                    </div>
+                    <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
+                        Coloured traces = SDE samples &nbsp;|&nbsp; dots at $t=1$ accumulate at the data edge
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 39: Parameterizations -->
+        <div class="slide" data-slide="39">
             <div class="slide-content">
                 <h2>Linear Parameterizations</h2>
                 
@@ -1719,8 +1813,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 37: Efficient Sampling -->
-        <div class="slide" data-slide="37">
+        <!-- SLIDE 40: Efficient Sampling -->
+        <div class="slide" data-slide="40">
             <div class="slide-content">
                 <h2>Efficient Conditional Sampling</h2>
                 
@@ -1745,8 +1839,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 38: Transition consistency -->
-        <div class="slide" data-slide="38">
+        <!-- SLIDE 41: Transition consistency -->
+        <div class="slide" data-slide="41">
             <div class="slide-content">
                 <h2>Transition Consistency</h2>
 
@@ -1796,8 +1890,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 39: Diffusion as a special case -->
-        <div class="slide" data-slide="39">
+        <!-- SLIDE 42: Diffusion as a special case -->
+        <div class="slide" data-slide="42">
             <div class="slide-content">
                 <h2>But diffusion seemed different…</h2>
                 <p style="font-size: 1rem; margin-bottom: 0.5rem;">
@@ -1832,8 +1926,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 40: To Do / Future -->
-        <div class="slide" data-slide="40">
+        <!-- SLIDE 43: To Do / Future -->
+        <div class="slide" data-slide="43">
             <div class="slide-content">
                 <h2>Coming Soon...</h2>
                 
@@ -2738,6 +2832,153 @@
         };
         gmKernelRegressor.init();
         gmKernelRegressor.recordLossCheckpoint(true);
+
+        const BB_BRIDGE_SIGMA = 48;
+        const BB_SDE_STEPS_PER_UNIT = 120;
+
+        function randn() {
+            let u, v, s;
+            do {
+                u = Math.random() * 2 - 1;
+                v = Math.random() * 2 - 1;
+                s = u * u + v * v;
+            } while (s >= 1 || s === 0);
+            return u * Math.sqrt(-2 * Math.log(s) / s);
+        }
+
+        /** One Euler–Maruyama step of the Brownian bridge SDE toward fixed x₁. */
+        function bbSdeStep(x, t, x1, dt, sigma = BB_BRIDGE_SIGMA) {
+            const omt = Math.max(1 - t, 1e-5);
+            const t1 = Math.min(t + dt, 1 - 1e-5);
+            const dtAct = t1 - t;
+            if (dtAct < 1e-10) return { x, t: t1 };
+            return {
+                x: x + (x1 - x) / omt * dtAct + sigma * Math.sqrt(dtAct) * randn(),
+                t: t1
+            };
+        }
+
+        /** Simulate bridge SDE from t=0 to tEnd (≤1); returns path points and final state. */
+        function simulateBBToTime(x0, x1, tEnd, { sigma = BB_BRIDGE_SIGMA, stepsPerUnit = BB_SDE_STEPS_PER_UNIT } = {}) {
+            const tc = Math.min(Math.max(tEnd, 0), 1 - 1e-5);
+            const pts = [{ t: 0, x: x0 }];
+            let x = x0;
+            let t = 0;
+            const nSteps = Math.max(1, Math.ceil(stepsPerUnit * tc));
+            const dt = tc / nSteps;
+            for (let i = 0; i < nSteps; i++) {
+                const next = bbSdeStep(x, t, x1, dt, sigma);
+                x = next.x;
+                t = next.t;
+                pts.push({ t, x });
+            }
+            return { xt: x, t: tc, pts };
+        }
+
+        const bbKernelRegressor = {
+            samples: [],
+            lossHistory: [],
+            trainSteps: 0,
+            lossRecordEvery: 100,
+            lossMcSamples: 256,
+            maxSamples: 5000,
+            priorMean: PRIOR_CENTER_1.y,
+            priorSigma: PRIOR_SIGMA_1,
+            dataMeanY: DATA1_MIX[0].weight * DATA1_MIX[0].mean + DATA1_MIX[1].weight * DATA1_MIX[1].mean,
+            bridgeSigma: BB_BRIDGE_SIGMA,
+
+            init() {
+                this.samples = [];
+                this.lossHistory = [];
+                this.trainSteps = 0;
+            },
+
+            reset() {
+                this.samples = [];
+                this.lossHistory = [];
+                this.trainSteps = 0;
+                this.recordLossCheckpoint(true);
+            },
+
+            estimateLoss() {
+                let sum = 0;
+                const n = this.lossMcSamples;
+                for (let i = 0; i < n; i++) {
+                    const x1 = sampleX1FromDataDist();
+                    const x0 = samplePrior1D(this.priorMean, this.priorSigma);
+                    const t = Math.random() * 0.9995;
+                    const { xt } = simulateBBToTime(x0, x1, t, { sigma: this.bridgeSigma });
+                    const dTarget = x1 - xt;
+                    const dHat = this.predictD(t, xt);
+                    sum += (dHat - dTarget) ** 2;
+                }
+                return sum / n;
+            },
+
+            recordLossCheckpoint(force = false) {
+                if (!force && this.trainSteps > 0 && this.trainSteps % this.lossRecordEvery !== 0) return;
+                this.lossHistory.push({ step: this.trainSteps, loss: this.estimateLoss() });
+            },
+
+            bandwidths() {
+                const n = this.samples.length;
+                const decay = Math.pow(900 / (900 + n), 0.12);
+                return {
+                    bwT: 0.018 + 0.022 * decay,
+                    bwX: 4 + 7 * decay
+                };
+            },
+
+            predictD(t, x) {
+                const { bwT, bwX } = this.bandwidths();
+                let num = 0, den = 0;
+                for (const s of this.samples) {
+                    const dt = (t - s.t) / bwT;
+                    const dx = (x - s.x) / bwX;
+                    const w = Math.exp(-0.5 * (dt * dt + dx * dx));
+                    num += w * s.d;
+                    den += w;
+                }
+                if (den < 1e-8) {
+                    const x1Cold = (1 - t) * this.priorMean + t * this.dataMeanY;
+                    return x1Cold - x;
+                }
+                return num / den;
+            },
+
+            predictX1(t, x) {
+                return x + this.predictD(t, x);
+            },
+
+            /** Learned bridge SDE step: drift uses x̂₁ instead of x₁ᶻ. */
+            sdeStep(t, x, dt) {
+                const x1h = this.predictX1(t, x);
+                return bbSdeStep(x, t, x1h, dt, this.bridgeSigma).x;
+            },
+
+            addSample(t, x, d) {
+                this.samples.push({ t, x, d });
+                if (this.samples.length > this.maxSamples) this.samples.shift();
+            },
+
+            trainStep() {
+                const x1 = sampleX1FromDataDist();
+                const x0 = samplePrior1D(this.priorMean, this.priorSigma);
+                const t = Math.random() * 0.9995;
+                const sim = simulateBBToTime(x0, x1, t, { sigma: this.bridgeSigma });
+                const xt = sim.xt;
+                const dTarget = x1 - xt;
+                const dHat = this.predictD(t, xt);
+                const loss = (dHat - dTarget) ** 2;
+                this.addSample(t, xt, dTarget);
+                this.trainSteps++;
+                this.recordLossCheckpoint();
+                const x1Hat = xt + dHat;
+                return { x0, x1, t, xt, x1Hat, dTarget, dHat, loss, sdePts: sim.pts };
+            }
+        };
+        bbKernelRegressor.init();
+        bbKernelRegressor.recordLossCheckpoint(true);
 
         // =========================================
         // AUDIO: Soft click on direction switch (Viz 2)
@@ -5727,7 +5968,643 @@
         }
 
         // =========================================
-        // VP DIFFUSION BRIDGE VIZ (slide 39)
+        // BB TRAIN VIZ: Brownian bridge regression (slides 37–38)
+        // =========================================
+        const bbTrainVizSvg = document.getElementById('bbTrainVizSvg');
+        const bbTrainLossSvg = document.getElementById('bbTrainLossSvg');
+        const btnBbTrainPlay = document.getElementById('btnBbTrainPlay');
+        const btnBbTrainReset = document.getElementById('btnBbTrainReset');
+        const bbTrainSpeedInput = document.getElementById('bbTrainSpeed');
+        const bbTrainSpeedVal = document.getElementById('bbTrainSpeedVal');
+        const bbTrainStatsEl = document.getElementById('bbTrainStats');
+        const bbTrainShowDemoCb = document.getElementById('bbTrainShowDemo');
+
+        if (bbTrainVizSvg) {
+            const BTR_PHASE_DUR = { pick: 0.28, sde_to_t: 0.85, predict: 0.4, error: 0.35, update: 0.3, hold: 0.75 };
+            const BTR_PHASE_ORDER = ['pick', 'sde_to_t', 'predict', 'error', 'update', 'hold'];
+            const BTR_MAX_TRAIN_DOTS = 350;
+
+            function btrX(t) { return fmX(t); }
+
+            const btr = {
+                running: false,
+                speed: 10,
+                showDemo: true,
+                phase: 'pick',
+                phaseT: 0,
+                stepCount: 0,
+                demo: null,
+                pendingStep: null,
+                lastFrame: performance.now()
+            };
+            const btrdom = {};
+            const bblossdom = {};
+
+            function btrSdePathD(pts, maxIdx) {
+                if (!pts || pts.length === 0) return '';
+                const end = Math.min(maxIdx, pts.length - 1);
+                let d = `M ${btrX(pts[0].t).toFixed(1)} ${pts[0].x.toFixed(1)}`;
+                for (let i = 1; i <= end; i++) {
+                    d += ` L ${btrX(pts[i].t).toFixed(1)} ${pts[i].x.toFixed(1)}`;
+                }
+                return d;
+            }
+
+            function btrInterpSde(pts, u) {
+                if (!pts || pts.length === 0) return { t: 0, x: 0 };
+                if (pts.length === 1) return { t: pts[0].t, x: pts[0].x };
+                const f = u * (pts.length - 1);
+                const i = Math.min(Math.floor(f), pts.length - 2);
+                const a = pts[i];
+                const b = pts[i + 1];
+                const loc = f - i;
+                return { t: a.t + loc * (b.t - a.t), x: a.x + loc * (b.x - a.x) };
+            }
+
+            function buildBbTrainSvg() {
+                bbTrainVizSvg.replaceChildren();
+                btrdom.priorHump = svgEl('path', { class: 'viz-prior-hump' });
+                bbTrainVizSvg.appendChild(btrdom.priorHump);
+                btrdom.priorLabel = svgEl('text', { x: FM_VIZ.X0 + 2, y: 18, 'font-size': 12 });
+                btrdom.dataLabel = svgEl('text', { x: FM_VIZ.W - 6, y: 18, 'font-size': 12, 'text-anchor': 'end' });
+                btrdom.phaseLabel = svgEl('text', { x: FM_VIZ.W / 2, y: 18, 'text-anchor': 'middle', 'font-size': 12 });
+                bbTrainVizSvg.appendChild(btrdom.priorLabel);
+                bbTrainVizSvg.appendChild(btrdom.dataLabel);
+                bbTrainVizSvg.appendChild(btrdom.phaseLabel);
+
+                btrdom.dataHumpG = svgEl('g');
+                btrdom.dataMixtureHump = svgEl('path', { class: 'viz-data-hump' });
+                btrdom.dataHumpG.appendChild(btrdom.dataMixtureHump);
+                bbTrainVizSvg.appendChild(btrdom.dataHumpG);
+
+                btrdom.trainDotsG = svgEl('g');
+                btrdom.trainDotPool = [];
+                for (let i = 0; i < BTR_MAX_TRAIN_DOTS; i++) {
+                    const c = svgEl('circle', { r: 1.6, visibility: 'hidden' });
+                    btrdom.trainDotsG.appendChild(c);
+                    btrdom.trainDotPool.push(c);
+                }
+                bbTrainVizSvg.appendChild(btrdom.trainDotsG);
+
+                btrdom.demoG = svgEl('g');
+                btrdom.sdePath = svgEl('path', { fill: 'none', 'stroke-width': 2, 'stroke-linecap': 'round' });
+                btrdom.targetLine = svgEl('line', { 'stroke-width': 1.8, 'stroke-dasharray': '6 4' });
+                btrdom.x0Dot = svgEl('circle', { r: 6, fill: '#90caf9' });
+                btrdom.x1Dot = svgEl('circle', { r: 6, fill: '#ffb74d' });
+                btrdom.xtDot = svgEl('circle', { r: 7, fill: '#81c784' });
+                btrdom.x1HatDot = svgEl('circle', { r: 6, fill: '#ef5350' });
+                btrdom.errorLine = svgEl('line', { 'stroke-width': 2.5, 'stroke-dasharray': '5 4' });
+                btrdom.predArrow = makeSvgArrow();
+                btrdom.demoG.appendChild(btrdom.sdePath);
+                btrdom.demoG.appendChild(btrdom.targetLine);
+                btrdom.demoG.appendChild(btrdom.x0Dot);
+                btrdom.demoG.appendChild(btrdom.x1Dot);
+                btrdom.demoG.appendChild(btrdom.xtDot);
+                btrdom.demoG.appendChild(btrdom.x1HatDot);
+                btrdom.demoG.appendChild(btrdom.errorLine);
+                btrdom.demoG.appendChild(btrdom.predArrow.g);
+                bbTrainVizSvg.appendChild(btrdom.demoG);
+            }
+
+            function buildBbLossSvg() {
+                if (!bbTrainLossSvg) return;
+                bbTrainLossSvg.replaceChildren();
+                bblossdom.label = svgEl('text', { x: 6, y: 14, 'font-size': 11 });
+                bblossdom.gridLine = svgEl('line', { 'stroke-width': 1 });
+                bblossdom.pathLoss = svgEl('path', { fill: 'none', 'stroke-width': 2 });
+                bblossdom.dotStart = svgEl('circle', { r: 4, fill: '#7986cb' });
+                bblossdom.dotEnd = svgEl('circle', { r: 4, fill: '#ef5350' });
+                bbTrainLossSvg.appendChild(bblossdom.label);
+                bbTrainLossSvg.appendChild(bblossdom.gridLine);
+                bbTrainLossSvg.appendChild(bblossdom.pathLoss);
+                bbTrainLossSvg.appendChild(bblossdom.dotStart);
+                bbTrainLossSvg.appendChild(bblossdom.dotEnd);
+            }
+
+            function bbDemoFromStep(step) {
+                btr.demo = {
+                    x0: step.x0, x1: step.x1, tTarget: step.t,
+                    sdePts: step.sdePts, sdeU: 0, t: 0, xt: step.x0,
+                    x1Hat: null, x1HatBefore: step.x1Hat, x1HatAfter: null,
+                    show: { x0: false, x1: false, sde: false, targetLine: false, xt: false, hat: false, err: false }
+                };
+                btr.phase = 'pick';
+                btr.phaseT = 0;
+                btr.pendingStep = step;
+            }
+
+            function bbStartNewDemo() {
+                bbDemoFromStep(bbKernelRegressor.trainStep());
+                btr.stepCount++;
+            }
+
+            function bbTrainDemoPhaseRate() {
+                if (btr.speed <= 1) return btr.speed * 0.3;
+                return Math.min(btr.speed, 40);
+            }
+
+            function bbFormatSpeed(s) {
+                return (s < 1 ? s.toFixed(2) : String(Math.round(s * 100) / 100)) + '×';
+            }
+
+            function advanceBbTrainPhase() {
+                const d = btr.demo;
+                if (!d) return;
+
+                if (btr.phase === 'pick') {
+                    d.show.x0 = btr.phaseT > 0.08;
+                    d.show.x1 = btr.phaseT > 0.18;
+                } else if (btr.phase === 'sde_to_t') {
+                    d.show.x0 = true;
+                    d.show.x1 = true;
+                    d.show.sde = true;
+                    d.show.targetLine = true;
+                    const u = Math.min(1, btr.phaseT / BTR_PHASE_DUR.sde_to_t);
+                    const ease = u * u * (3 - 2 * u);
+                    d.sdeU = ease;
+                    const cur = btrInterpSde(d.sdePts, ease);
+                    d.t = cur.t;
+                    d.xt = cur.x;
+                    d.show.xt = ease > 0.02;
+                } else if (btr.phase === 'predict') {
+                    d.sdeU = 1;
+                    d.t = d.tTarget;
+                    d.xt = d.sdePts[d.sdePts.length - 1].x;
+                    d.show.sde = true;
+                    d.show.targetLine = true;
+                    d.show.xt = true;
+                    if (d.x1Hat === null) d.x1Hat = d.x1HatBefore;
+                    d.show.hat = btr.phaseT > 0.06;
+                } else if (btr.phase === 'error') {
+                    d.show.hat = true;
+                    d.show.err = btr.phaseT > 0.05;
+                } else if (btr.phase === 'update') {
+                    d.show.err = true;
+                    if (d.x1HatAfter === null && btr.pendingStep) {
+                        d.x1HatAfter = bbKernelRegressor.predictX1(d.t, d.xt);
+                        btr.pendingStep = null;
+                    }
+                    const u = Math.min(1, btr.phaseT / BTR_PHASE_DUR.update);
+                    const after = d.x1HatAfter !== null ? d.x1HatAfter : d.x1HatBefore;
+                    d.x1Hat = d.x1HatBefore + (after - d.x1HatBefore) * u;
+                } else if (btr.phase === 'hold') {
+                    d.sdeU = 1;
+                    d.t = d.tTarget;
+                    d.xt = d.sdePts[d.sdePts.length - 1].x;
+                    d.show = { x0: true, x1: true, sde: true, targetLine: true, xt: true, hat: true, err: true };
+                    if (d.x1HatAfter !== null) d.x1Hat = d.x1HatAfter;
+                }
+            }
+
+            function tickBbTrainDemo() {
+                const now = performance.now();
+                const dt = Math.min(0.05, (now - btr.lastFrame) / 1000);
+                btr.lastFrame = now;
+                btr.phaseT += dt * bbTrainDemoPhaseRate();
+                if (!btr.demo) bbStartNewDemo();
+                advanceBbTrainPhase();
+                const dur = BTR_PHASE_DUR[btr.phase];
+                if (btr.phaseT >= dur) {
+                    const idx = BTR_PHASE_ORDER.indexOf(btr.phase);
+                    if (idx < BTR_PHASE_ORDER.length - 1) {
+                        btr.phase = BTR_PHASE_ORDER[idx + 1];
+                        btr.phaseT = 0;
+                    } else {
+                        bbStartNewDemo();
+                    }
+                }
+            }
+
+            function tickBbTrainFast() {
+                const nSteps = Math.max(1, Math.floor(btr.speed * 3));
+                for (let i = 0; i < nSteps; i++) {
+                    bbKernelRegressor.trainStep();
+                    btr.stepCount++;
+                }
+            }
+
+            function renderBbTrainViz() {
+                const th = getVizTheme();
+                styleFm1DLayout(btrdom, th);
+
+                if (btr.showDemo && btr.demo) {
+                    const phaseNames = {
+                        pick: 'Sample x₀, x₁ᶻ',
+                        sde_to_t: 'SDE bridge steps 0 → t',
+                        predict: 'Model predicts x̂₁',
+                        error: 'MSE |x₁ − x̂₁|',
+                        update: 'Add to regressor',
+                        hold: 'Pause — sample stored'
+                    };
+                    btrdom.phaseLabel.setAttribute('fill', th.textBright);
+                    btrdom.phaseLabel.textContent = phaseNames[btr.phase];
+                } else {
+                    btrdom.phaseLabel.setAttribute('fill', th.textMuted);
+                    btrdom.phaseLabel.textContent = btr.running ? `Training… ${btr.stepCount} steps` : 'Fast training mode';
+                }
+
+                if (btr.showDemo) {
+                    const nShow = Math.min(bbKernelRegressor.samples.length, BTR_MAX_TRAIN_DOTS);
+                    const startIdx = Math.max(0, bbKernelRegressor.samples.length - BTR_MAX_TRAIN_DOTS);
+                    btrdom.trainDotPool.forEach((c, i) => {
+                        if (i < nShow) {
+                            const s = bbKernelRegressor.samples[startIdx + i];
+                            c.setAttribute('cx', btrX(s.t));
+                            c.setAttribute('cy', s.x);
+                            c.setAttribute('fill', '#7986cb');
+                            c.setAttribute('fill-opacity', vizAlpha(0.3, 'hump'));
+                            c.setAttribute('visibility', 'visible');
+                        } else {
+                            c.setAttribute('visibility', 'hidden');
+                        }
+                    });
+                } else {
+                    btrdom.trainDotPool.forEach(c => c.setAttribute('visibility', 'hidden'));
+                }
+
+                const hideDemo = () => {
+                    btrdom.sdePath.setAttribute('visibility', 'hidden');
+                    btrdom.targetLine.setAttribute('visibility', 'hidden');
+                    btrdom.x0Dot.setAttribute('visibility', 'hidden');
+                    btrdom.x1Dot.setAttribute('visibility', 'hidden');
+                    btrdom.xtDot.setAttribute('visibility', 'hidden');
+                    btrdom.x1HatDot.setAttribute('visibility', 'hidden');
+                    btrdom.errorLine.setAttribute('visibility', 'hidden');
+                    btrdom.predArrow.line.setAttribute('visibility', 'hidden');
+                    btrdom.predArrow.head.setAttribute('visibility', 'hidden');
+                };
+
+                if (!btr.showDemo || !btr.demo) { hideDemo(); return; }
+                const d = btr.demo;
+
+                if (d.show.sde && d.sdePts) {
+                    const maxIdx = Math.floor(d.sdeU * (d.sdePts.length - 1));
+                    btrdom.sdePath.setAttribute('d', btrSdePathD(d.sdePts, maxIdx));
+                    btrdom.sdePath.setAttribute('stroke', '#78909c');
+                    btrdom.sdePath.setAttribute('stroke-opacity', vizAlpha(0.75, 'trace'));
+                    btrdom.sdePath.setAttribute('visibility', 'visible');
+                } else btrdom.sdePath.setAttribute('visibility', 'hidden');
+
+                if (d.show.targetLine) {
+                    btrdom.targetLine.setAttribute('x1', btrX(d.t));
+                    btrdom.targetLine.setAttribute('y1', d.xt);
+                    btrdom.targetLine.setAttribute('x2', FM_VIZ.X1);
+                    btrdom.targetLine.setAttribute('y2', d.x1);
+                    btrdom.targetLine.setAttribute('stroke', '#ffb74d');
+                    btrdom.targetLine.setAttribute('stroke-opacity', vizAlpha(0.65, 'trace'));
+                    btrdom.targetLine.setAttribute('visibility', 'visible');
+                } else btrdom.targetLine.setAttribute('visibility', 'hidden');
+
+                if (d.show.x0) {
+                    btrdom.x0Dot.setAttribute('cx', btrX(0));
+                    btrdom.x0Dot.setAttribute('cy', d.x0);
+                    btrdom.x0Dot.setAttribute('visibility', 'visible');
+                } else btrdom.x0Dot.setAttribute('visibility', 'hidden');
+
+                if (d.show.x1) {
+                    btrdom.x1Dot.setAttribute('cx', FM_VIZ.X1);
+                    btrdom.x1Dot.setAttribute('cy', d.x1);
+                    btrdom.x1Dot.setAttribute('visibility', 'visible');
+                } else btrdom.x1Dot.setAttribute('visibility', 'hidden');
+
+                if (d.show.xt) {
+                    btrdom.xtDot.setAttribute('cx', btrX(d.t));
+                    btrdom.xtDot.setAttribute('cy', d.xt);
+                    btrdom.xtDot.setAttribute('visibility', 'visible');
+                } else btrdom.xtDot.setAttribute('visibility', 'hidden');
+
+                if (d.show.hat && d.x1Hat !== null) {
+                    btrdom.x1HatDot.setAttribute('cx', FM_VIZ.X1);
+                    btrdom.x1HatDot.setAttribute('cy', d.x1Hat);
+                    btrdom.x1HatDot.setAttribute('visibility', 'visible');
+                    updateSvgArrow(btrdom.predArrow, btrX(d.t), d.xt, FM_VIZ.X1, d.x1Hat, {
+                        color: '#ef5350', lineWidth: 2, alpha: 0.85, headlen: 9
+                    });
+                } else {
+                    btrdom.x1HatDot.setAttribute('visibility', 'hidden');
+                    btrdom.predArrow.line.setAttribute('visibility', 'hidden');
+                    btrdom.predArrow.head.setAttribute('visibility', 'hidden');
+                }
+
+                if (d.show.err && d.x1Hat !== null) {
+                    btrdom.errorLine.setAttribute('x1', FM_VIZ.X1 - 10);
+                    btrdom.errorLine.setAttribute('x2', FM_VIZ.X1 - 10);
+                    btrdom.errorLine.setAttribute('y1', d.x1);
+                    btrdom.errorLine.setAttribute('y2', d.x1Hat);
+                    btrdom.errorLine.setAttribute('stroke', '#ff7043');
+                    btrdom.errorLine.setAttribute('stroke-opacity', 0.9);
+                    btrdom.errorLine.setAttribute('visibility', 'visible');
+                } else btrdom.errorLine.setAttribute('visibility', 'hidden');
+            }
+
+            function renderBbLossPlot() {
+                if (!bbTrainLossSvg || !bblossdom.pathLoss) return;
+                const th = getVizTheme();
+                const LW = 720, LH = 96;
+                const padL = 42, padR = 8, padT = 22, padB = 14;
+                const plotW = LW - padL - padR;
+                const plotH = LH - padT - padB;
+                const hist = bbKernelRegressor.lossHistory;
+                const nRec = bbKernelRegressor.lossRecordEvery;
+                const nMc = bbKernelRegressor.lossMcSamples;
+
+                bblossdom.label.setAttribute('fill', th.textMuted);
+                bblossdom.label.textContent = `Bridge MSE (avg of ${nMc} SDE draws, every ${nRec} steps)`;
+
+                if (hist.length < 1) {
+                    bblossdom.pathLoss.setAttribute('d', '');
+                    bblossdom.dotStart.setAttribute('visibility', 'hidden');
+                    bblossdom.dotEnd.setAttribute('visibility', 'hidden');
+                    bblossdom.gridLine.setAttribute('visibility', 'hidden');
+                    if (bbTrainStatsEl) bbTrainStatsEl.textContent = `steps: ${btr.stepCount}  |  loss: —`;
+                    return;
+                }
+
+                const xMax = Math.max(bbKernelRegressor.trainSteps, hist[hist.length - 1].step, 1);
+                const yMax = Math.max(500, ...hist.map(h => h.loss)) * 1.05;
+                const toX = step => padL + (step / xMax) * plotW;
+                const toY = v => padT + plotH - (v / yMax) * plotH;
+
+                let dLoss = '';
+                hist.forEach((h, i) => {
+                    dLoss += (i === 0 ? 'M' : 'L') + ` ${toX(h.step).toFixed(1)} ${toY(h.loss).toFixed(1)}`;
+                });
+                bblossdom.pathLoss.setAttribute('d', dLoss);
+                bblossdom.pathLoss.setAttribute('stroke', '#ef5350');
+                bblossdom.pathLoss.setAttribute('stroke-opacity', 0.92);
+
+                const first = hist[0];
+                const last = hist[hist.length - 1];
+                bblossdom.dotStart.setAttribute('cx', toX(first.step));
+                bblossdom.dotStart.setAttribute('cy', toY(first.loss));
+                bblossdom.dotStart.setAttribute('visibility', 'visible');
+                bblossdom.dotEnd.setAttribute('cx', toX(last.step));
+                bblossdom.dotEnd.setAttribute('cy', toY(last.loss));
+                bblossdom.dotEnd.setAttribute('visibility', 'visible');
+
+                bblossdom.gridLine.setAttribute('x1', padL);
+                bblossdom.gridLine.setAttribute('x2', LW - padR);
+                bblossdom.gridLine.setAttribute('y1', padT + plotH);
+                bblossdom.gridLine.setAttribute('y2', padT + plotH);
+                bblossdom.gridLine.setAttribute('stroke', th.axis);
+                bblossdom.gridLine.setAttribute('visibility', 'visible');
+
+                if (bbTrainStatsEl) {
+                    bbTrainStatsEl.textContent = `steps: ${btr.stepCount}  |  loss: ${last.loss.toFixed(0)} (${nMc}-sample avg)`;
+                }
+            }
+
+            function loopBbTrain() {
+                if (btr.running) {
+                    if (btr.showDemo) tickBbTrainDemo();
+                    else tickBbTrainFast();
+                }
+                renderBbLossPlot();
+                if (btr.showDemo || btr.running) renderBbTrainViz();
+            }
+
+            buildBbTrainSvg();
+            buildBbLossSvg();
+            bbStartNewDemo();
+
+            if (btnBbTrainPlay) {
+                btnBbTrainPlay.addEventListener('click', () => {
+                    btr.running = !btr.running;
+                    btr.lastFrame = performance.now();
+                    btnBbTrainPlay.textContent = btr.running ? '⏸' : '▶';
+                });
+            }
+            if (btnBbTrainReset) {
+                btnBbTrainReset.addEventListener('click', () => {
+                    bbKernelRegressor.reset();
+                    btr.stepCount = 0;
+                    bbStartNewDemo();
+                });
+            }
+            if (bbTrainSpeedInput) {
+                bbTrainSpeedInput.addEventListener('input', () => {
+                    btr.speed = parseFloat(bbTrainSpeedInput.value) || 10;
+                    if (bbTrainSpeedVal) bbTrainSpeedVal.textContent = bbFormatSpeed(btr.speed);
+                });
+            }
+            if (bbTrainShowDemoCb) {
+                bbTrainShowDemoCb.addEventListener('change', () => {
+                    btr.showDemo = bbTrainShowDemoCb.checked;
+                    if (btr.showDemo && !btr.demo) bbStartNewDemo();
+                    renderBbTrainViz();
+                });
+            }
+
+            registerVizRefresh(() => { renderBbTrainViz(); renderBbLossPlot(); });
+            SlideAnim.register(
+                [slideIndexOf(bbTrainVizSvg), slideIndexOf(document.getElementById('bbSampleVizSvg'))],
+                makeSlideRafLoop(loopBbTrain, { onStart: () => { btr.lastFrame = performance.now(); } })
+            );
+        }
+
+        // =========================================
+        // BB SAMPLE VIZ: Brownian bridge SDE sampling (slide 38)
+        // =========================================
+        const bbSampleVizSvg = document.getElementById('bbSampleVizSvg');
+        const btnBbSampleOne = document.getElementById('btnBbSampleOne');
+        const btnBbSampleBurst = document.getElementById('btnBbSampleBurst');
+        const btnBbSampleClear = document.getElementById('btnBbSampleClear');
+        const bbSampleStatsEl = document.getElementById('bbSampleStats');
+
+        if (bbSampleVizSvg) {
+            const BBS_N_STEPS = 220;
+            const BBS_MAX_PATHS = 36;
+            const BBS_PATH_SPEED = 115;
+            const BBS_PATH_COLORS = ['#5c6bc0', '#e53935', '#43a047', '#fb8c00', '#8e24aa', '#00acc1'];
+
+            function bbsX(t) { return fmX(t); }
+
+            const bbs = {
+                paths: [],
+                endpoints: [],
+                lastFrame: performance.now()
+            };
+            const bbsdom = {};
+
+            function integrateBbSamplePath(x0) {
+                const pts = [{ t: 0, x: x0 }];
+                let x = x0;
+                let t = 0;
+                const dt = 1 / BBS_N_STEPS;
+                for (let i = 0; i < BBS_N_STEPS; i++) {
+                    x = bbKernelRegressor.sdeStep(t, x, dt);
+                    t += dt;
+                    pts.push({ t, x });
+                }
+                return pts;
+            }
+
+            function bbsPathD(pts, maxIdx) {
+                if (!pts.length) return '';
+                const end = Math.min(maxIdx, pts.length - 1);
+                let d = `M ${bbsX(pts[0].t).toFixed(1)} ${pts[0].x.toFixed(1)}`;
+                for (let i = 1; i <= end; i++) {
+                    d += ` L ${bbsX(pts[i].t).toFixed(1)} ${pts[i].x.toFixed(1)}`;
+                }
+                return d;
+            }
+
+            function bbsPathPos(pts, idx) {
+                if (idx <= 0) return pts[0];
+                if (idx >= pts.length - 1) return pts[pts.length - 1];
+                const i = Math.floor(idx);
+                const f = idx - i;
+                const a = pts[i];
+                const b = pts[i + 1];
+                return { t: a.t + f * (b.t - a.t), x: a.x + f * (b.x - a.x) };
+            }
+
+            function addBbSamplePath() {
+                const x0 = samplePrior1D(PRIOR_CENTER_1.y, PRIOR_SIGMA_1);
+                const color = BBS_PATH_COLORS[bbs.paths.length % BBS_PATH_COLORS.length];
+                bbs.paths.push({ x0, pts: integrateBbSamplePath(x0), idx: 0, color });
+                if (bbs.paths.length > BBS_MAX_PATHS) bbs.paths.shift();
+            }
+
+            function buildBbSampleSvg() {
+                bbSampleVizSvg.replaceChildren();
+                bbsdom.priorHump = svgEl('path', { class: 'viz-prior-hump' });
+                bbSampleVizSvg.appendChild(bbsdom.priorHump);
+                bbsdom.priorLabel = svgEl('text', { x: FM_VIZ.X0 + 2, y: 18, 'font-size': 12 });
+                bbsdom.dataLabel = svgEl('text', { x: FM_VIZ.W - 6, y: 18, 'font-size': 12, 'text-anchor': 'end' });
+                bbsdom.hintLabel = svgEl('text', { x: FM_VIZ.W / 2, y: 18, 'text-anchor': 'middle', 'font-size': 12 });
+                bbSampleVizSvg.appendChild(bbsdom.priorLabel);
+                bbSampleVizSvg.appendChild(bbsdom.dataLabel);
+                bbSampleVizSvg.appendChild(bbsdom.hintLabel);
+
+                bbsdom.dataMixtureHump = svgEl('path', { class: 'viz-data-hump' });
+                bbSampleVizSvg.appendChild(bbsdom.dataMixtureHump);
+
+                bbsdom.trailsG = svgEl('g');
+                bbsdom.trailPool = [];
+                for (let i = 0; i < BBS_MAX_PATHS; i++) {
+                    const p = svgEl('path', { fill: 'none', 'stroke-width': 1.6, visibility: 'hidden' });
+                    bbsdom.trailsG.appendChild(p);
+                    bbsdom.trailPool.push(p);
+                }
+                bbSampleVizSvg.appendChild(bbsdom.trailsG);
+
+                bbsdom.dotsG = svgEl('g');
+                bbsdom.dotPool = [];
+                for (let i = 0; i < BBS_MAX_PATHS; i++) {
+                    const c = svgEl('circle', { r: 5, visibility: 'hidden' });
+                    bbsdom.dotsG.appendChild(c);
+                    bbsdom.dotPool.push(c);
+                }
+                bbSampleVizSvg.appendChild(bbsdom.dotsG);
+
+                bbsdom.endpointsG = svgEl('g');
+                bbsdom.endpointPool = [];
+                for (let i = 0; i < 80; i++) {
+                    const c = svgEl('circle', { r: 3.2, visibility: 'hidden' });
+                    bbsdom.endpointsG.appendChild(c);
+                    bbsdom.endpointPool.push(c);
+                }
+                bbSampleVizSvg.appendChild(bbsdom.endpointsG);
+            }
+
+            function tickBbSamplePaths(dt) {
+                const finished = [];
+                for (const p of bbs.paths) {
+                    p.idx += BBS_PATH_SPEED * dt;
+                    if (p.idx >= p.pts.length - 1) {
+                        finished.push(p);
+                    }
+                }
+                for (const p of finished) {
+                    const last = p.pts[p.pts.length - 1];
+                    bbs.endpoints.push({ x: last.x, color: p.color });
+                    if (bbs.endpoints.length > 80) bbs.endpoints.shift();
+                }
+                bbs.paths = bbs.paths.filter(p => p.idx < p.pts.length - 1);
+            }
+
+            function renderBbSampleViz() {
+                const th = getVizTheme();
+                styleFm1DLayout(bbsdom, th);
+
+                const nTrain = bbKernelRegressor.samples.length;
+                if (nTrain < 5) {
+                    bbsdom.hintLabel.setAttribute('fill', '#ffb74d');
+                    bbsdom.hintLabel.textContent = 'Train on previous slide first (▶)';
+                } else {
+                    bbsdom.hintLabel.setAttribute('fill', th.textMuted);
+                    bbsdom.hintLabel.textContent = `σ = ${BB_BRIDGE_SIGMA} · ${nTrain} training samples · SDE paths`;
+                }
+
+                bbsdom.trailPool.forEach((pathEl, i) => {
+                    if (i < bbs.paths.length) {
+                        const p = bbs.paths[i];
+                        const maxIdx = Math.floor(p.idx);
+                        pathEl.setAttribute('d', bbsPathD(p.pts, maxIdx));
+                        pathEl.setAttribute('stroke', p.color);
+                        pathEl.setAttribute('stroke-opacity', vizAlpha(0.55, 'trace'));
+                        pathEl.setAttribute('visibility', 'visible');
+                    } else {
+                        pathEl.setAttribute('visibility', 'hidden');
+                    }
+                });
+
+                bbsdom.dotPool.forEach((c, i) => {
+                    if (i < bbs.paths.length) {
+                        const p = bbs.paths[i];
+                        const pos = bbsPathPos(p.pts, p.idx);
+                        c.setAttribute('cx', bbsX(pos.t));
+                        c.setAttribute('cy', pos.x);
+                        c.setAttribute('fill', p.color);
+                        c.setAttribute('stroke', th.dotStroke);
+                        c.setAttribute('stroke-width', 1);
+                        c.setAttribute('visibility', 'visible');
+                    } else {
+                        c.setAttribute('visibility', 'hidden');
+                    }
+                });
+
+                bbsdom.endpointPool.forEach((c, i) => {
+                    if (i < bbs.endpoints.length) {
+                        const e = bbs.endpoints[i];
+                        c.setAttribute('cx', FM_VIZ.X1);
+                        c.setAttribute('cy', e.x);
+                        c.setAttribute('fill', e.color);
+                        c.setAttribute('fill-opacity', vizAlpha(0.75, 'hump'));
+                        c.setAttribute('visibility', 'visible');
+                    } else {
+                        c.setAttribute('visibility', 'hidden');
+                    }
+                });
+
+                if (bbSampleStatsEl) {
+                    bbSampleStatsEl.textContent = `paths: ${bbs.paths.length + bbs.endpoints.length}  |  training samples: ${nTrain}`;
+                }
+            }
+
+            function loopBbSample(now) {
+                const dt = Math.min(0.05, (now - bbs.lastFrame) / 1000);
+                bbs.lastFrame = now;
+                tickBbSamplePaths(dt);
+                renderBbSampleViz();
+            }
+
+            buildBbSampleSvg();
+
+            if (btnBbSampleOne) btnBbSampleOne.addEventListener('click', addBbSamplePath);
+            if (btnBbSampleBurst) btnBbSampleBurst.addEventListener('click', () => { for (let i = 0; i < 10; i++) addBbSamplePath(); });
+            if (btnBbSampleClear) btnBbSampleClear.addEventListener('click', () => { bbs.paths = []; bbs.endpoints = []; });
+
+            registerVizRefresh(renderBbSampleViz);
+            SlideAnim.register(
+                [slideIndexOf(document.getElementById('bbTrainVizSvg')), slideIndexOf(bbSampleVizSvg)],
+                makeSlideRafLoop(loopBbSample, { onStart: () => { bbs.lastFrame = performance.now(); } })
+            );
+        }
+
+        // =========================================
+        // VP DIFFUSION BRIDGE VIZ (slide 42)
         // =========================================
         const diffVpSvg = document.getElementById('diffVpSvg');
         const btnDiffResample = document.getElementById('btnDiffResample');
