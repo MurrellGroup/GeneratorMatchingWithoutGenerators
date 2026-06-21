@@ -266,6 +266,10 @@
             max-width: 1120px;
         }
 
+        .viz-svg--fm {
+            max-width: 900px;
+        }
+
         .viz-svg--sim {
             cursor: crosshair;
         }
@@ -708,7 +712,7 @@
         <div class="slide" data-slide="6">
             <div class="slide-content">
                 <h2>Preliminaries: The Growth Process</h2>
-                <p style="font-size: 1.15rem; margin-bottom: 1rem;">Weight is pulled toward the sex-specific adult target $x_1^z$. When $x_t$ is far below target the pull is strong; as $x_t \approx x_1^z$ the drift vanishes and weight <strong>flattens out</strong> — fast early growth, then a plateau.</p>
+                <p style="font-size: 1.15rem; margin-bottom: 1rem;">Weight is pulled toward the sex-specific adult target $x_1^z$. When $x_t$ is far below target the pull is strong; as $x_t \approx x_1^z$ the drift vanishes and weight <strong>flattens out</strong> — fast early growth, then a plateau. For small timesteps, we have:</p>
 
                 <div class="equation">
                     $$p(x_{t+\Delta t} \mid x_t, z, t) = \mathcal{N}\!\left(x_t + \kappa\,(x_1^z - x_t)\,\Delta t,\; \sigma^2 \Delta t\right)$$
@@ -744,6 +748,9 @@
                         <strong>Hover:</strong> vertical bar at $t$; humps = $p(x_t \mid z, t)$; dot color = $p(z \mid x_t, t)$
                     </div>
                 </div>
+                <div class="callout" style="margin-top: 1rem; font-size: 1.05rem;">
+                    See if you can concretely identify \(p(x_t \mid t)\), \(p(x_t \mid z, t)\), and \(p(z \mid x_t, t)\)?
+                </div>
             </div>
         </div>
 
@@ -778,7 +785,7 @@
         <div class="slide" data-slide="9">
             <div class="slide-content">
                 <h2>Preliminaries: Discrete Jumps</h2>
-                <p style="font-size: 1.15rem; margin-bottom: 1rem;">Instead of a smooth nudge, the user <strong>jumps</strong> between the 27 subscription states. Specify switching rates, not matrix exponentials:</p>
+                <p style="font-size: 1.15rem; margin-bottom: 1rem;">Instead of a smooth nudge, the user <strong>jumps</strong> between the 27 subscription states. Specify switching rates which, for small timesteps, give probabilities:</p>
 
                 <div class="equation">
                     $$p(x_{t+\Delta t} = s' \mid x_t = s, z, t) = \begin{cases} 1 - \lambda_z(t)\,\Delta t & s' = s \\ \lambda_z(t)\,\Delta t \cdot w_z(s' \mid s, t) & s' \neq s \end{cases}$$
@@ -821,8 +828,69 @@
             </div>
         </div>
 
-        <!-- SLIDE 11: What is GM? -->
+        <!-- SLIDE 11: Learning an average (SGD) -->
         <div class="slide" data-slide="11">
+            <div class="slide-content">
+                <h2>How can we learn an average?</h2>
+                <p style="font-size: 1rem; margin-bottom: 0.5rem;">
+                    We never observe $\mathbb{E}[Y]$ directly — only samples $y_i$ from a skewed distribution.
+                    Fit a scalar $\hat\theta$ with <strong>SGD</strong> (one sample per step). Different losses converge to different summaries.
+                </p>
+                <div class="interactive-figure" style="padding: 0.75rem 1rem; margin-top: 0;">
+                    <svg id="avgLearnSvg" class="viz-svg" viewBox="0 0 720 280" role="img" aria-label="Learning an average by SGD"></svg>
+                    <div class="controls" style="margin-top: 0.5rem; padding: 8px; flex-wrap: wrap; gap: 10px; align-items: center;">
+                        <button id="btnAvgPlay" class="secondary" title="Play / pause">▶</button>
+                        <button id="btnAvgReset" class="secondary">Reset</button>
+                        <label style="font-size: 0.85rem;">Loss
+                            <select id="avgLossType" style="margin-left: 4px; max-width: 220px;">
+                                <option value="l2" selected>MSE</option>
+                                <option value="poisson">Poisson KL</option>
+                                <option value="l1">L1</option>
+                                <option value="huber">Huber</option>
+                            </select>
+                        </label>
+                        <label style="font-size: 0.85rem;">LR
+                            <input type="range" id="avgLearnRate" min="0.001" max="0.35" step="0.001" value="0.012" style="width: 70px; vertical-align: middle;">
+                            <span id="avgLearnRateVal">0.012</span>
+                        </label>
+                        <span id="avgLearnStats" style="font-size: 0.85rem; color: var(--text-muted); margin-left: auto;">θ̂: — &nbsp;|&nbsp; step: 0</span>
+                    </div>
+                    <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
+                        <span style="color:#ffb74d; font-weight:bold;">Orange dots</span> = recent samples &nbsp;|&nbsp;
+                        <span style="color:#81c784; font-weight:bold;">Green</span> = $\hat\theta$ (SGD) &nbsp;|&nbsp;
+                        <span style="color:#ffb74d; font-weight:bold;">Gold dashed</span> = mean &nbsp;|&nbsp;
+                        <span style="color:#ef5350; font-weight:bold;">Red dashed</span> = loss target &nbsp;|&nbsp;
+                        <span style="color:#7986cb; font-weight:bold;">Indigo</span> = $\hat\theta$ trace (bottom panel)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: Bregman punchline -->
+        <div class="slide" data-slide="12">
+            <div class="slide-content">
+                <h2>Only Bregman losses learn the mean</h2>
+                <p style="font-size: 1.15rem; margin-bottom: 1rem;">
+                    <strong>MSE</strong> and <strong>Poisson KL</strong> both converge to $\mathbb{E}[Y]$;
+                    L¹, Huber, and the rest converge somewhere else.
+                </p>
+
+                <div class="key-point">
+                    <strong>Regression needs a Bregman divergence</strong> (MSE is the usual choice) if you want the arithmetic average.
+                    Other losses are fine — they just learn a different summary.
+                </div>
+
+                <h3>From one number to a function</h3>
+                <p style="font-size: 1.1rem;">
+                    The same rule applies whenever regression targets an expectation — not only a scalar $\mathbb{E}[Y]$, but a
+                    <strong>conditional mean</strong> $\mathbb{E}[Y \mid X=x]$ at each input $x$.
+                    A Bregman divergence still gives the arithmetic average; other losses learn a different summary.
+                </p>
+            </div>
+        </div>
+
+        <!-- SLIDE 13: What is GM? -->
+        <div class="slide" data-slide="13">
             <div class="slide-content">
                 <h2>What is Generator Matching?</h2>
                 <ul>
@@ -841,8 +909,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 12: The Setup -->
-        <div class="slide" data-slide="12">
+        <!-- SLIDE 14: The Setup -->
+        <div class="slide" data-slide="14">
             <div class="slide-content">
                 <h2>1. The Setup</h2>
                 <ul>
@@ -864,8 +932,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 13: Conditional Process -->
-        <div class="slide" data-slide="13">
+        <!-- SLIDE 15: Conditional Process -->
+        <div class="slide" data-slide="15">
             <div class="slide-content">
                 <h2>The Conditional Process</h2>
                 <p style="font-size: 1.2rem; margin-bottom: 1.5rem;">GM requires that you can:</p>
@@ -886,8 +954,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 14: Marginals and Posterior -->
-        <div class="slide" data-slide="14">
+        <!-- SLIDE 16: Marginals and Posterior -->
+        <div class="slide" data-slide="16">
             <div class="slide-content">
                 <h2>2. Marginals and Posterior</h2>
                 
@@ -911,8 +979,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 15: Concrete Example -->
-        <div class="slide" data-slide="15">
+        <!-- SLIDE 17: Concrete Example -->
+        <div class="slide" data-slide="17">
             <div class="slide-content">
                 <h2>3. Concrete Example: Flow Matching</h2>
                 <ul>
@@ -938,8 +1006,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 16: Interactive Posterior Visualization -->
-        <div class="slide" data-slide="16">
+        <!-- SLIDE 18: Interactive Posterior Visualization -->
+        <div class="slide" data-slide="18">
             <div class="slide-content">
                 <h2>Interactive: The Posterior $p(z \mid x_t, t)$</h2>
                 <div class="interactive-figure">
@@ -961,11 +1029,11 @@
             </div>
         </div>
 
-        <!-- SLIDE 17: Resample-z Process Intro -->
-        <div class="slide" data-slide="17">
+        <!-- SLIDE 19: Resample-z Process Intro -->
+        <div class="slide" data-slide="19">
             <div class="slide-content">
                 <h2>4. The Resample-$z$ Process</h2>
-                <p style="font-size: 1.2rem; margin-bottom: 1rem;">Consider a modified process that at each step:</p>
+                <p style="font-size: 1.2rem; margin-bottom: 1rem;">Consider a modified process that, periodically:</p>
                 
                 <blockquote>
                     <ol>
@@ -987,8 +1055,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 18: Why Marginals Match -->
-        <div class="slide" data-slide="18">
+        <!-- SLIDE 20: Why Marginals Match -->
+        <div class="slide" data-slide="20">
             <div class="slide-content">
                 <h2>Why Do Marginals Match?</h2>
                 <p style="font-size: 1.15rem; margin-bottom: 1rem;">Proof by induction: if marginals match at $t$, they match at $t+\Delta t$.</p>
@@ -1023,8 +1091,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 19: Interactive Resampling -->
-        <div class="slide" data-slide="19">
+        <!-- SLIDE 21: Interactive Resampling -->
+        <div class="slide" data-slide="21">
             <div class="slide-content">
                 <h2>Interactive: Resampling in Action</h2>
                 <div class="interactive-figure">
@@ -1048,8 +1116,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 20: Marginal Point Cloud Comparison -->
-        <div class="slide" data-slide="20">
+        <!-- SLIDE 22: Marginal Point Cloud Comparison -->
+        <div class="slide" data-slide="22">
             <div class="slide-content">
                 <h2>Same Marginal $p(x_t \mid t)$ for All Three Processes</h2>
                 <p style="font-size: 1rem; margin-bottom: 0.4rem;">500 particles with identical starts — marginal point cloud at each $t$ (should match across panels).</p>
@@ -1059,15 +1127,15 @@
                         <button id="btnMargPlay" class="secondary" title="Play animation">▶</button>
                     </div>
                     <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
-                        <span style="color:#c62828; font-weight:bold;">Red</span> / <span style="color:#e65100; font-weight:bold;">orange</span> / <span style="color:#2e7d32; font-weight:bold;">green</span> = 25 sample paths &nbsp;|&nbsp;
+                        <span style="color:#c62828; font-weight:bold;">Red</span> / <span style="color:#e65100; font-weight:bold;">orange</span> / <span style="color:#2e7d32; font-weight:bold;">green</span> = sample paths (bold = one example each) &nbsp;|&nbsp;
                         blue dots = marginal samples (should align across panels)
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- SLIDE 21: Infinite Switching Limit -->
-        <div class="slide" data-slide="21">
+        <!-- SLIDE 23: Infinite Switching Limit -->
+        <div class="slide" data-slide="23">
             <div class="slide-content">
                 <h2>5. The Infinite Switching Limit</h2>
                 
@@ -1093,8 +1161,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 22: Interactive Averaged Velocity -->
-        <div class="slide" data-slide="22">
+        <!-- SLIDE 24: Interactive Averaged Velocity -->
+        <div class="slide" data-slide="24">
             <div class="slide-content">
                 <h2>Interactive: Posterior-Averaged Velocity</h2>
                 <div class="interactive-figure">
@@ -1144,8 +1212,8 @@
         </div>
          -->
 
-        <!-- SLIDE 24: Training Algorithm -->
-        <div class="slide" data-slide="24">
+        <!-- SLIDE 25: Training Algorithm -->
+        <div class="slide" data-slide="25">
             <div class="slide-content">
                 <h2>6. Training</h2>
                 <p style="font-size: 1.2rem; margin-bottom: 1rem;">We need a model $f_\theta(t, x)$ that outputs $\bar{u}_t(x_t)$. This is just <strong>regression!</strong></p>
@@ -1175,8 +1243,63 @@
             </div>
         </div>
 
-        <!-- SLIDE 25: Different State Spaces -->
-        <div class="slide" data-slide="25">
+        <!-- SLIDE 26: Interactive Training -->
+        <div class="slide" data-slide="26">
+            <div class="slide-content">
+                <h2>Interactive: Training by Regression</h2>
+                <p style="font-size: 0.95rem; margin-bottom: 0.35rem;">Same recipe as the scalar demo — but $\hat\theta$ becomes a function $f_\theta(t, x_t)$ and the target is the <strong>conditional average</strong> of the step $x_1^z - x_t$. Univariate flow matching with a kernel smoother; arrows and sampling share the exact integrator $\dot{x}_t = (\hat{x}_1 - x_t)/(1-t)$.</p>
+                <div class="interactive-figure" style="padding: 0.75rem 1rem; margin-top: 0;">
+                    <svg id="trainVizSvg" class="viz-svg viz-svg--fm" viewBox="0 0 720 480" role="img" aria-label="Training regression animation"></svg>
+                    <svg id="trainLossSvg" class="viz-svg" viewBox="0 0 720 96" role="img" aria-label="Training loss" style="margin-top: 4px; height: 72px;"></svg>
+                    <div class="controls" style="margin-top: 0.5rem; padding: 8px; flex-wrap: wrap; gap: 8px; align-items: center;">
+                        <button id="btnTrainPlay" class="secondary" title="Play / pause">▶</button>
+                        <button id="btnTrainReset" class="secondary" title="Reset model">Reset</button>
+                        <label style="font-size: 0.85rem;">Speed
+                            <input type="range" id="trainSpeed" min="0.25" max="200" step="0.25" value="10" style="width: 90px; vertical-align: middle;">
+                            <span id="trainSpeedVal">10×</span>
+                        </label>
+                        <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="trainShowDemo" checked> Step animation
+                        </label>
+                        <label style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="trainShowField" checked> Vector field
+                        </label>
+                        <span id="trainStats" style="font-size: 0.85rem; color: var(--text-muted); margin-left: auto;">steps: 0 &nbsp;|&nbsp; loss: —</span>
+                    </div>
+                    <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
+                        <span style="color:#ffb74d; font-weight:bold;">Orange</span> = target $x_1^z$ &nbsp;|&nbsp;
+                        <span style="color:#ef5350; font-weight:bold;">Red arrows</span> = learned velocity field &nbsp;|&nbsp;
+                        <span style="color:#81c784; font-weight:bold;">Green</span> = $(t, x_t)$ &nbsp;|&nbsp;
+                        uncheck <em>Step animation</em> to train at full speed
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 27: Sample from Trained Model -->
+        <div class="slide" data-slide="27">
+            <div class="slide-content">
+                <h2>Interactive: Sampling from the Trained Model</h2>
+                <p style="font-size: 0.95rem; margin-bottom: 0.35rem;">Integrate the learned flow $ \dot{x}_t = (\hat{x}_1(t,x_t) - x_t)/(1-t) $ from $x_0 \sim p(x_0)$. Uses the regressor trained on the previous slide.</p>
+                <div class="interactive-figure" style="padding: 0.75rem 1rem; margin-top: 0;">
+                    <svg id="sampleVizSvg" class="viz-svg viz-svg--fm" viewBox="0 0 720 480" role="img" aria-label="Sampling from trained model"></svg>
+                    <div class="controls" style="margin-top: 0.5rem; padding: 8px; flex-wrap: wrap; gap: 8px;">
+                        <button id="btnSampleOne" class="secondary">Sample path</button>
+                        <button id="btnSampleBurst" class="secondary">Sample ×10</button>
+                        <button id="btnSampleClear" class="secondary">Clear</button>
+                        <span id="sampleStats" style="font-size: 0.85rem; color: var(--text-muted); margin-left: auto;">particles: 0 &nbsp;|&nbsp; training samples: —</span>
+                    </div>
+                    <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
+                        <span style="color:#7986cb; font-weight:bold;">Indigo lines</span> = prior quantile flow lines (1%–99%) &nbsp;|&nbsp;
+                        <span style="color:#ce93d8; font-weight:bold;">Purple dots</span> = samples in transit &nbsp;|&nbsp;
+                        <span style="color:#4fc3f7; font-weight:bold;">Blue humps</span> = data at $t=1$
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 28: Different State Spaces -->
+        <div class="slide" data-slide="28">
             <div class="slide-content">
                 <h2>7. Different State Spaces</h2>
                 <p style="font-size: 1.15rem; margin-bottom: 1rem;">The "smooth average" works for any stochastic process. What gets averaged depends on the step type:</p>
@@ -1218,8 +1341,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 26: Case I - Drift Only -->
-        <div class="slide" data-slide="26">
+        <!-- SLIDE 29: Case I - Drift Only -->
+        <div class="slide" data-slide="29">
             <div class="slide-content">
                 <h2>Case I: Deterministic Flow (Pure Drift)</h2>
                 
@@ -1240,8 +1363,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 27: Case II - Drift + Diffusion -->
-        <div class="slide" data-slide="27">
+        <!-- SLIDE 30: Case II - Drift + Diffusion -->
+        <div class="slide" data-slide="30">
             <div class="slide-content">
                 <h2>Case II: Diffusion (Drift + Gaussian Noise)</h2>
                 
@@ -1262,8 +1385,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 28: Case III - Discrete -->
-        <div class="slide" data-slide="28">
+        <!-- SLIDE 31: Case III - Discrete -->
+        <div class="slide" data-slide="31">
             <div class="slide-content">
                 <h2>Case III: Discrete States (CTMC)</h2>
                 
@@ -1287,8 +1410,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 29: Case IV - Jumps -->
-        <div class="slide" data-slide="29">
+        <!-- SLIDE 32: Case IV - Jumps -->
+        <div class="slide" data-slide="32">
             <div class="slide-content">
                 <h2>Case IV: Jump Processes in Continuous Space</h2>
                 
@@ -1312,8 +1435,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 30: Closure -->
-        <div class="slide" data-slide="30">
+        <!-- SLIDE 33: Closure -->
+        <div class="slide" data-slide="33">
             <div class="slide-content">
                 <h2>Closure Property</h2>
                 
@@ -1336,8 +1459,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 31: Sampling -->
-        <div class="slide" data-slide="31">
+        <!-- SLIDE 34: Sampling -->
+        <div class="slide" data-slide="34">
             <div class="slide-content">
                 <h2>8. Sampling from a Trained Model</h2>
                 
@@ -1362,8 +1485,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 32: Complete Recipe -->
-        <div class="slide" data-slide="32">
+        <!-- SLIDE 35: Complete Recipe -->
+        <div class="slide" data-slide="35">
             <div class="slide-content">
                 <h2>9. The Complete GM Recipe</h2>
 
@@ -1402,8 +1525,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 33: Parameterizations -->
-        <div class="slide" data-slide="33">
+        <!-- SLIDE 36: Parameterizations -->
+        <div class="slide" data-slide="36">
             <div class="slide-content">
                 <h2>Linear Parameterizations</h2>
                 
@@ -1438,8 +1561,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 34: Efficient Sampling -->
-        <div class="slide" data-slide="34">
+        <!-- SLIDE 37: Efficient Sampling -->
+        <div class="slide" data-slide="37">
             <div class="slide-content">
                 <h2>Efficient Conditional Sampling</h2>
                 
@@ -1464,8 +1587,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 35: To Do / Future -->
-        <div class="slide" data-slide="35">
+        <!-- SLIDE 38: To Do / Future -->
+        <div class="slide" data-slide="38">
             <div class="slide-content">
                 <h2>Coming Soon...</h2>
                 
@@ -1636,13 +1759,13 @@
             };
         }
 
-        function verticalGaussianHumpD(height, meanY, sigmaY, maxWidth) {
-            let d = 'M 0 0';
-            for (let y = 0; y <= height; y += 2) {
+        function verticalGaussianHumpD(yTop, yBottom, meanY, sigmaY, maxWidth) {
+            let d = `M 0 ${yTop}`;
+            for (let y = yTop; y <= yBottom; y += 2) {
                 const pdf = Math.exp(-((y - meanY) ** 2) / (2 * sigmaY * sigmaY));
                 d += ` L ${(maxWidth * pdf).toFixed(1)} ${y}`;
             }
-            d += ` L 0 ${height} Z`;
+            d += ` L 0 ${yBottom} Z`;
             return d;
         }
 
@@ -1654,6 +1777,35 @@
             }
             d += ` L ${xBar} ${yBottom} Z`;
             return d;
+        }
+
+        /** Mixture density at t=1, drawn leftward from xBar so it fits inside the plot. */
+        function horizontalMixtureHumpLeftD(xBar, yTop, yBottom, maxWidth, pdfFn) {
+            let maxPdf = 0;
+            for (let y = yTop; y <= yBottom; y += 2) {
+                maxPdf = Math.max(maxPdf, pdfFn(y));
+            }
+            if (maxPdf < 1e-12) maxPdf = 1;
+            let d = `M ${xBar} ${yTop}`;
+            for (let y = yTop; y <= yBottom; y += 2) {
+                const pdf = pdfFn(y);
+                d += ` L ${(xBar - maxWidth * pdf / maxPdf).toFixed(1)} ${y}`;
+            }
+            d += ` L ${xBar} ${yBottom} Z`;
+            return d;
+        }
+
+        function gaussianPdf1D(y, mean, sigma) {
+            const z = (y - mean) / sigma;
+            return Math.exp(-0.5 * z * z) / (sigma * Math.sqrt(2 * Math.PI));
+        }
+
+        function data1MixturePdf(y) {
+            let p = 0;
+            for (const m of DATA1_MIX) {
+                p += m.weight * gaussianPdf1D(y, m.mean, m.sigma);
+            }
+            return p;
         }
 
         function vizWorldlineStroke(w, lightOffset = 0.05) {
@@ -1708,49 +1860,39 @@
             textEl.setAttribute('x', centerX);
             textEl.setAttribute('y', y);
             textEl.setAttribute('text-anchor', 'middle');
+            textEl.setAttribute('font-size', mainSize);
             if (fill) textEl.setAttribute('fill', fill);
-            let xOff = -segments.reduce((sum, seg) =>
-                sum + seg.text.length * (seg.sub ? subSize : mainSize) * 0.55, 0) / 2;
-            let prevSub = false;
-            segments.forEach((seg, i) => {
-                const tspan = svgEl('tspan', { 'font-size': seg.sub ? subSize : mainSize });
-                tspan.setAttribute('x', centerX + xOff);
-                if (i > 0) {
-                    if (seg.sub && !prevSub) {
-                        tspan.setAttribute('dy', Math.round(mainSize * 0.28));
-                    } else if (!seg.sub && prevSub) {
-                        tspan.setAttribute('dy', -Math.round(mainSize * 0.28));
-                    } else {
-                        tspan.setAttribute('dy', 0);
-                    }
-                }
+            segments.forEach(seg => {
+                const tspan = svgEl('tspan');
                 tspan.textContent = seg.text;
+                if (seg.sub) {
+                    tspan.setAttribute('font-size', subSize);
+                    tspan.setAttribute('baseline-shift', 'sub');
+                }
                 textEl.appendChild(tspan);
-                xOff += seg.text.length * (seg.sub ? subSize : mainSize) * 0.55;
-                prevSub = seg.sub;
             });
         }
 
-        function snapParticleAtT1(p, mode, targets, center, sigma) {
-            const weights = getPosteriorWeights(p, targets, 0.9999, center, sigma);
-            if (mode === 'average') {
-                let x = 0, y = 0;
-                targets.forEach((z, i) => { x += weights[i] * z.x; y += weights[i] * z.y; });
-                p.x = x;
-                p.y = y;
-            } else {
-                if (!p.currentZ) {
-                    let r = Math.random(), cum = 0;
-                    for (let i = 0; i < weights.length; i++) {
-                        cum += weights[i];
-                        if (r <= cum) { p.currentZ = targets[i]; break; }
-                    }
-                }
-                if (p.currentZ) {
-                    p.x = p.currentZ.x;
-                    p.y = p.currentZ.y;
-                }
+        function sampleDataTargets2D(n) {
+            const targets = [];
+            for (let i = 0; i < n; i++) {
+                let x = (Math.random() + Math.random() + Math.random()) / 3 * 50 + 720;
+                let y = (Math.random() + Math.random() + Math.random()) / 3 * 120 + 60;
+                if (Math.random() < 0.3) y += 150;
+                targets.push({ x, y });
             }
+            return targets;
+        }
+
+        function pickCenterHeroIndex(seeds) {
+            const cx = seeds.reduce((s, p) => s + p.x, 0) / seeds.length;
+            const cy = seeds.reduce((s, p) => s + p.y, 0) / seeds.length;
+            let best = 0, bestD = Infinity;
+            seeds.forEach((p, i) => {
+                const d = (p.x - cx) ** 2 + (p.y - cy) ** 2;
+                if (d < bestD) { bestD = d; best = i; }
+            });
+            return best;
         }
 
         const vizRefreshCallbacks = [];
@@ -1796,11 +1938,87 @@
         // UTILS & MATH
         // =========================================
         
-        // Prior Distribution Parameters (Centered on Canvas)
-        const PRIOR_CENTER_1 = { x: 300, y: 225 }; // Center of canvas approx
-        const PRIOR_SIGMA_1 = 80; 
+        // Prior Distribution Parameters (1D flow-matching slides)
+        const PRIOR_SIGMA_1 = 80;
         const PRIOR_CENTER_2 = { x: 120, y: 200 }; // Center of canvas approx
-        const PRIOR_SIGMA_2 = 40; 
+        const PRIOR_SIGMA_2 = 40;
+
+        /** Shared layout for 1D flow-matching slides (25 & 26). */
+        const FM_VIZ = {
+            W: 720,
+            H: 480,
+            X0: 14,
+            Y_TOP: 48,
+            Y_BOT: 432,
+            DATA_MIX_WIDTH: 64,
+            PRIOR_HUMP_WIDTH: 48,
+            PRIOR_PAD: 4
+        };
+        FM_VIZ.X1 = FM_VIZ.W - FM_VIZ.X0;
+
+        const PRIOR_CENTER_1 = { x: 300, y: FM_VIZ.H / 2 };
+
+        function priorHumpYBounds() {
+            const pad = FM_VIZ.PRIOR_PAD;
+            const yLo = PRIOR_CENTER_1.y - 3.5 * PRIOR_SIGMA_1;
+            const yHi = PRIOR_CENTER_1.y + 3.5 * PRIOR_SIGMA_1;
+            return {
+                top: Math.max(pad, yLo),
+                bot: Math.min(FM_VIZ.H - pad, yHi)
+            };
+        }
+
+        function buildData1Mix(priorMean, yTop, yBottom) {
+            const margin = 28;
+            const lo = yTop + margin;
+            const hi = yBottom - margin;
+            const spanBelow = priorMean - lo;
+            const spanAbove = hi - priorMean;
+            const halfLo = spanBelow * 0.44;
+            const halfHi = spanAbove * 0.46;
+            const sigmaHeavy = Math.max(13, halfHi / 1.75);
+            const sigmaLight = Math.max(5, sigmaHeavy * 0.28);
+            return [
+                { weight: 0.45, mean: priorMean - halfLo, sigma: sigmaLight },
+                { weight: 0.55, mean: priorMean + halfHi, sigma: sigmaHeavy }
+            ];
+        }
+
+        const DATA1_MIX = buildData1Mix(PRIOR_CENTER_1.y, FM_VIZ.Y_TOP, FM_VIZ.Y_BOT);
+
+        function sampleX1FromDataDist() {
+            const comp = Math.random() < DATA1_MIX[0].weight ? DATA1_MIX[0] : DATA1_MIX[1];
+            return samplePrior1D(comp.mean, comp.sigma);
+        }
+
+        function fmX(t) {
+            return FM_VIZ.X0 + t * (FM_VIZ.X1 - FM_VIZ.X0);
+        }
+
+        function priorHump1DD() {
+            const { top, bot } = priorHumpYBounds();
+            return horizontalGaussianHumpD(
+                FM_VIZ.X0, top, bot,
+                PRIOR_CENTER_1.y, PRIOR_SIGMA_1, FM_VIZ.PRIOR_HUMP_WIDTH);
+        }
+
+        function dataMixtureHump1DD() {
+            return horizontalMixtureHumpLeftD(
+                FM_VIZ.X1, FM_VIZ.Y_TOP, FM_VIZ.Y_BOT, FM_VIZ.DATA_MIX_WIDTH, data1MixturePdf);
+        }
+
+        function styleFm1DLayout(dom, th) {
+            dom.priorHump.setAttribute('d', priorHump1DD());
+            dom.priorHump.setAttribute('fill', th.humpGray);
+            dom.priorHump.setAttribute('fill-opacity', vizAlpha(0.14, 'hump'));
+            dom.priorLabel.setAttribute('fill', th.text);
+            dom.priorLabel.textContent = 'Prior (t=0)';
+            dom.dataLabel.setAttribute('fill', th.text);
+            dom.dataLabel.textContent = 'Data (t=1)';
+            dom.dataMixtureHump.setAttribute('d', dataMixtureHump1DD());
+            dom.dataMixtureHump.setAttribute('fill', '#4fc3f7');
+            dom.dataMixtureHump.setAttribute('fill-opacity', vizAlpha(0.28, 'hump'));
+        }
 
         function distSq(p1, p2) {
             return (p1.x - p2.x)**2 + (p1.y - p2.y)**2;
@@ -1857,8 +2075,8 @@
             return expWeights.map(w => w / sumExp);
         }
 
-        function advanceParticle2D(p, mode, resampleInterval, t, dt, targets, center, sigma, onResample) {
-            const denom = Math.max(1 - t, 0.02);
+        function advanceParticle2D(p, mode, resampleInterval, t, dt, targets, center, sigma, onResample, minDenom = 0.02) {
+            const denom = Math.max(1 - t, minDenom);
             const weights = getPosteriorWeights(p, targets, t, center, sigma);
             if (mode === 'average') {
                 let vx = 0, vy = 0;
@@ -1940,6 +2158,220 @@
             return expW.map(w => w / sumExp);
         }
 
+        /** Bimodal data mix (prototype endpoints for posterior weights). */
+        function posteriorMeanX1Mix(x, t, priorMean, priorSigma) {
+            const modes = DATA1_MIX.map(m => ({ y: m.mean, lw0: Math.log(m.weight) }));
+            const tSafe = Math.min(Math.max(t, 0), 0.9999);
+            const omt = 1 - tSafe;
+            let maxL = -Infinity;
+            const logWs = modes.map(m => {
+                const x0 = (x - tSafe * m.y) / omt;
+                const lw = m.lw0 + gaussianLogPdf1D(x0, priorMean, priorSigma);
+                if (lw > maxL) maxL = lw;
+                return lw;
+            });
+            let sumExp = 0;
+            const expW = logWs.map(lw => {
+                const w = Math.exp(lw - maxL);
+                sumExp += w;
+                return w;
+            });
+            let mean = 0;
+            modes.forEach((m, i) => { mean += (expW[i] / sumExp) * m.y; });
+            return mean;
+        }
+
+        function sampleDataTargets1D(n) {
+            const targets = [];
+            for (let i = 0; i < n; i++) {
+                let y = (Math.random() + Math.random() + Math.random()) / 3 * 200 - 100;
+                if (Math.random() < 0.3) targets.push(y + 125);
+                else targets.push(y + 325);
+            }
+            return targets;
+        }
+
+        function samplePrior1D(meanY = PRIOR_CENTER_1.y, sigmaY = PRIOR_SIGMA_1) {
+            let u, v, s;
+            do {
+                u = Math.random() * 2 - 1;
+                v = Math.random() * 2 - 1;
+                s = u * u + v * v;
+            } while (s >= 1 || s === 0);
+            const mul = Math.sqrt(-2 * Math.log(s) / s);
+            return meanY + sigmaY * u * mul;
+        }
+
+        function erf(x) {
+            const sign = x < 0 ? -1 : 1;
+            x = Math.abs(x);
+            const t = 1 / (1 + 0.3275911 * x);
+            const y = 1 - (((((1.061405429 * t + -1.453152027) * t) + 1.421413741) * t
+                + -0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+            return sign * y;
+        }
+
+        function normalCDF(z) {
+            return 0.5 * (1 + erf(z / Math.SQRT2));
+        }
+
+        /** Inverse CDF of standard normal via monotone bisection. */
+        function normalInvCDF(p) {
+            if (p <= 0) return -Infinity;
+            if (p >= 1) return Infinity;
+            let lo = -8, hi = 8;
+            for (let i = 0; i < 56; i++) {
+                const mid = (lo + hi) * 0.5;
+                if (normalCDF(mid) < p) lo = mid;
+                else hi = mid;
+            }
+            return (lo + hi) * 0.5;
+        }
+
+        function gaussianQuantile(p, mean, sigma) {
+            return mean + sigma * normalInvCDF(p);
+        }
+
+        function posteriorMeanX1_1D(x, targetsY, t, meanY, sigmaY) {
+            const weights = getPosteriorWeights1D(x, targetsY, t, meanY, sigmaY);
+            let sum = 0;
+            targetsY.forEach((zy, i) => { sum += weights[i] * zy; });
+            return sum;
+        }
+
+        const gmKernelRegressor = {
+            samples: [],
+            lossHistory: [],
+            trainSteps: 0,
+            lossRecordEvery: 100,
+            lossMcSamples: 256,
+            maxSamples: 5000,
+            priorMean: PRIOR_CENTER_1.y,
+            priorSigma: PRIOR_SIGMA_1,
+            dataMeanY: DATA1_MIX[0].weight * DATA1_MIX[0].mean + DATA1_MIX[1].weight * DATA1_MIX[1].mean,
+
+            init() {
+                this.samples = [];
+                this.lossHistory = [];
+                this.trainSteps = 0;
+            },
+
+            reset() {
+                this.samples = [];
+                this.lossHistory = [];
+                this.trainSteps = 0;
+                this.recordLossCheckpoint(true);
+            },
+
+            estimateLoss() {
+                let sum = 0;
+                const n = this.lossMcSamples;
+                for (let i = 0; i < n; i++) {
+                    const x1 = sampleX1FromDataDist();
+                    const x0 = samplePrior1D(this.priorMean, this.priorSigma);
+                    const t = Math.random() * 0.9995;
+                    const xt = (1 - t) * x0 + t * x1;
+                    const dTarget = x1 - xt;
+                    const dHat = this.predictD(t, xt);
+                    sum += (dHat - dTarget) ** 2;
+                }
+                return sum / n;
+            },
+
+            recordLossCheckpoint(force = false) {
+                if (!force && this.trainSteps > 0 && this.trainSteps % this.lossRecordEvery !== 0) return;
+                this.lossHistory.push({ step: this.trainSteps, loss: this.estimateLoss() });
+            },
+
+            bandwidths() {
+                const n = this.samples.length;
+                const decay = Math.pow(900 / (900 + n), 0.12);
+                return {
+                    bwT: 0.018 + 0.022 * decay,
+                    bwX: 4 + 7 * decay
+                };
+            },
+
+            /** NW estimate of E[x₁ − x_t | x_t, t] (flow-matching displacement target). */
+            predictD(t, x) {
+                const { bwT, bwX } = this.bandwidths();
+                let num = 0, den = 0;
+                for (const s of this.samples) {
+                    const dt = (t - s.t) / bwT;
+                    const dx = (x - s.x) / bwX;
+                    const w = Math.exp(-0.5 * (dt * dt + dx * dx));
+                    num += w * s.d;
+                    den += w;
+                }
+                if (den < 1e-8) {
+                    const x1Cold = (1 - t) * this.priorMean + t * this.dataMeanY;
+                    return x1Cold - x;
+                }
+                return num / den;
+            },
+
+            predictX1(t, x) {
+                return x + this.predictD(t, x);
+            },
+
+            /** dx/dt = (x̂₁ − x)/(1−t) — same formula used for integration and arrows. */
+            predictU(t, x) {
+                const tSafe = Math.min(Math.max(t, 0), 1 - 1e-5);
+                const omt = 1 - tSafe;
+                if (omt < 1e-5) return 0;
+                return this.predictD(tSafe, x) / omt;
+            },
+
+            /** Exact one-step integrator for dx/dt = (x̂₁(x,t) − x)/(1−t) with frozen x̂₁. */
+            flowStep(t, x, dt) {
+                const t0 = Math.min(Math.max(t, 0), 1 - 1e-5);
+                const t1 = Math.min(t0 + dt, 1 - 1e-5);
+                const dtAct = t1 - t0;
+                if (dtAct < 1e-8) return x;
+                const x1h = this.predictX1(t0, x);
+                const omt = 1 - t0;
+                if (omt < 1e-5) return x1h;
+                return x1h + (x - x1h) * ((1 - t1) / omt);
+            },
+
+            addSample(t, x, d) {
+                this.samples.push({ t, x, d });
+                if (this.samples.length > this.maxSamples) this.samples.shift();
+            },
+
+            trainStep() {
+                const x1 = sampleX1FromDataDist();
+                const x0 = samplePrior1D(this.priorMean, this.priorSigma);
+                const t = Math.random() * 0.9995;
+                const xt = (1 - t) * x0 + t * x1;
+                const dTarget = x1 - xt;
+                const dHat = this.predictD(t, xt);
+                const loss = (dHat - dTarget) ** 2;
+                this.addSample(t, xt, dTarget);
+                this.trainSteps++;
+                this.recordLossCheckpoint();
+                const x1Hat = xt + dHat;
+                return { x0, x1, t, xt, x1Hat, dTarget, dHat, loss };
+            },
+
+            evalGridLoss() {
+                let sum = 0, n = 0;
+                for (let ti = 0; ti < 8; ti++) {
+                    const t = 0.05 + (ti / 7) * 0.9;
+                    for (let yi = 0; yi < 10; yi++) {
+                        const x = 40 + (yi / 9) * 340;
+                        const oracleD = posteriorMeanX1Mix(x, t, this.priorMean, this.priorSigma) - x;
+                        const predD = this.predictD(t, x);
+                        sum += (predD - oracleD) ** 2;
+                        n++;
+                    }
+                }
+                return sum / n;
+            }
+        };
+        gmKernelRegressor.init();
+        gmKernelRegressor.recordLossCheckpoint(true);
+
         // =========================================
         // AUDIO: Soft click on direction switch (Viz 2)
         // =========================================
@@ -1997,7 +2429,7 @@
             posteriorSvg.appendChild(v1dom.priorHump);
 
             v1dom.priorLabel = svgEl('text', { x: 2, y: 20, 'font-size': 12 });
-            v1dom.dataLabel = svgEl('text', { x: V1_W - 50, y: 20, 'font-size': 12 });
+            v1dom.dataLabel = svgEl('text', { x: V1_W - 8, y: 20, 'font-size': 12, 'text-anchor': 'end' });
             v1dom.tLabel = svgEl('text', { x: V1_W / 2, y: 20, 'text-anchor': 'middle', 'font-size': 12 });
             posteriorSvg.appendChild(v1dom.priorLabel);
             posteriorSvg.appendChild(v1dom.dataLabel);
@@ -2070,7 +2502,7 @@
             const priorMeanY = PRIOR_CENTER_1.y;
             const priorSigmaY = PRIOR_SIGMA_1;
 
-            v1dom.priorHump.setAttribute('d', verticalGaussianHumpD(V1_H, priorMeanY, priorSigmaY, 60));
+            v1dom.priorHump.setAttribute('d', verticalGaussianHumpD(0, V1_H, priorMeanY, priorSigmaY, 60));
             v1dom.priorHump.setAttribute('fill', th.humpGray);
             v1dom.priorHump.setAttribute('fill-opacity', vizAlpha(0.15, 'hump'));
 
@@ -2144,15 +2576,7 @@
         //    { x: 750, y: 280 }, { x: 780, y: 260 }, { x: 730, y: 290 }
         //];
         //Sample these randomly from two gaussians which are ventered on the previously hardcoded points.
-        simTargets = [];
-        for (let i = 0; i < 40; i++) {
-            x = (Math.random()+Math.random()+Math.random())/3 * 50 + 720;
-            y = (Math.random()+Math.random()+Math.random())/3 * 120 + 60;
-            if (Math.random() < 0.3) {
-                y += 150;
-            }
-            simTargets.push({ x, y});
-        }
+        simTargets = sampleDataTargets2D(40);
 
         let sim = {
             mode: 'resample', 
@@ -2173,7 +2597,7 @@
             simSvg.replaceChildren();
 
             simdom.priorLabel = svgEl('text', { x: PRIOR_CENTER_2.x - 40, y: 20, 'font-size': 12 });
-            simdom.dataLabel = svgEl('text', { x: SIM_W - 50, y: 20, 'font-size': 12 });
+            simdom.dataLabel = svgEl('text', { x: SIM_W - 8, y: 20, 'font-size': 12, 'text-anchor': 'end' });
             simSvg.appendChild(simdom.priorLabel);
             simSvg.appendChild(simdom.dataLabel);
 
@@ -2562,7 +2986,7 @@
             posteriorSvg3.appendChild(v3dom.priorHump);
 
             v3dom.priorLabel = svgEl('text', { x: 2, y: 20, 'font-size': 12 });
-            v3dom.dataLabel = svgEl('text', { x: V3_W - 50, y: 20, 'font-size': 12 });
+            v3dom.dataLabel = svgEl('text', { x: V3_W - 8, y: 20, 'font-size': 12, 'text-anchor': 'end' });
             v3dom.tLabel = svgEl('text', { x: V3_W / 2, y: 20, 'text-anchor': 'middle', 'font-size': 12 });
             posteriorSvg3.appendChild(v3dom.priorLabel);
             posteriorSvg3.appendChild(v3dom.dataLabel);
@@ -2639,7 +3063,7 @@
             const priorMeanY = PRIOR_CENTER_1.y;
             const priorSigmaY = PRIOR_SIGMA_1;
 
-            v3dom.priorHump.setAttribute('d', verticalGaussianHumpD(V3_H, priorMeanY, priorSigmaY, 60));
+            v3dom.priorHump.setAttribute('d', verticalGaussianHumpD(0, V3_H, priorMeanY, priorSigmaY, 60));
             v3dom.priorHump.setAttribute('fill', th.humpGray);
             v3dom.priorHump.setAttribute('fill-opacity', vizAlpha(0.15, 'hump'));
 
@@ -2955,7 +3379,10 @@
                 const priorMeanY = layoutS.weightToY(MOUSE.priorMean);
                 const priorSigmaY = (MOUSE.priorSigma / (MOUSE.wMax - MOUSE.wMin)) * layoutS.plotH;
 
-                moused.priorHump.setAttribute('d', verticalGaussianHumpD(MOUSE_H, priorMeanY, priorSigmaY, 45));
+                moused.priorHump.setAttribute('d', verticalGaussianHumpD(
+                    layoutS.plotTop - 18, layoutS.plotBottom + 6,
+                    priorMeanY, priorSigmaY, 45
+                ));
                 moused.priorHump.setAttribute('fill', th.humpGray);
                 moused.priorHump.setAttribute('fill-opacity', vizAlpha(0.15, 'hump'));
 
@@ -2988,14 +3415,14 @@
                     const muM = mouseCondMean(MOUSE.targetM, t);
 
                     moused.humpF.setAttribute('d', horizontalGaussianHumpD(
-                        tX, layoutS.plotTop, layoutS.plotBottom,
+                        tX, layoutS.plotTop - 18, layoutS.plotBottom + 6,
                         layoutS.weightToY(muF), sigY, humpWidth
                     ));
                     moused.humpF.setAttribute('fill', MOUSE.colorF);
                     moused.humpF.setAttribute('fill-opacity', vizAlpha(0.35, 'hump'));
 
                     moused.humpM.setAttribute('d', horizontalGaussianHumpD(
-                        tX, layoutS.plotTop, layoutS.plotBottom,
+                        tX, layoutS.plotTop - 18, layoutS.plotBottom + 6,
                         layoutS.weightToY(muM), sigY, humpWidth
                     ));
                     moused.humpM.setAttribute('fill', MOUSE.colorM);
@@ -3067,7 +3494,7 @@
             }
             aiUpdateLayout();
 
-            const tierLabel = ['$0', '$20', '$100'];
+            const tierLabel = ['0', '20', '100'];
 
             function aiDecode(idx) {
                 return [idx % 3, Math.floor(idx / 3) % 3, Math.floor(idx / 9)];
@@ -3340,7 +3767,10 @@
                     aid.gridG.appendChild(line);
                     aid.gridLines.push(line);
                     if (s === 0 || s === 13 || s === 26 || aiSpend(s) !== aiSpend(s - 1)) {
-                        const lbl = svgEl('text', { x: 4, y: y + 3, 'font-size': 9 });
+                        const lbl = svgEl('text', {
+                            x: AI.leftX0 - 6, y: y + 3,
+                            'font-size': 9, 'text-anchor': 'end'
+                        });
                         lbl.textContent = aiLabel(s);
                         aid.gridG.appendChild(lbl);
                         aid.stateLabels.push(lbl);
@@ -3540,7 +3970,7 @@
             const margDt = 1 / 1000;
             const MARG_BOUNDS = { xMin: 35, xMax: 785, yMin: 30, yMax: 370 };
             const MARG_TRAIL_COLORS = ['#c62828', '#e65100', '#2e7d32'];
-            const MARG_TRAIL_STEP = 20;
+            const MARG_TRAIL_STEP = 8;
             const MARG_PANELS = [
                 { label: 'Conditional', mode: 'resample', interval: 1000 },
                 { label: '0.05', mode: 'resample', interval: 50 },
@@ -3573,7 +4003,8 @@
                     id,
                     x: seed.x,
                     y: seed.y,
-                    history: (id % MARG_TRAIL_STEP === 0) ? [{ x: seed.x, y: seed.y }] : null,
+                    history: (id === marg.heroIdx || id % MARG_TRAIL_STEP === 0)
+                        ? [{ x: seed.x, y: seed.y }] : null,
                     currentZ: null,
                     timer: 0
                 })));
@@ -3587,8 +4018,11 @@
                     const pt = margToSvg(p.history[k].x, p.history[k].y, panel);
                     d += ` L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
                 }
-                const end = margToSvg(p.x, p.y, panel);
-                d += ` L ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
+                const last = p.history[p.history.length - 1];
+                if (last.x !== p.x || last.y !== p.y) {
+                    const end = margToSvg(p.x, p.y, panel);
+                    d += ` L ${end.x.toFixed(1)} ${end.y.toFixed(1)}`;
+                }
                 return d;
             }
 
@@ -3596,9 +4030,12 @@
                 t: 0,
                 running: false,
                 seeds: samplePriorSeeds2D(500),
+                targets: sampleDataTargets2D(500),
+                heroIdx: 0,
                 panelParticles: null,
                 dom: { time: null, panels: [] }
             };
+            marg.heroIdx = pickCenterHeroIndex(marg.seeds);
             marg.panelParticles = initMargParticlesFromSeeds(marg.seeds);
 
             function buildMarginalSvg() {
@@ -3647,8 +4084,8 @@
                         g.appendChild(prior);
                         axisLabelEls.push(prior);
                         const data = svgEl('text', {
-                            x: panel.left + panel.width - 44, y: panel.top - 4,
-                            'font-size': 10, class: 'marg-axis-label'
+                            x: panel.left + panel.width - 4, y: panel.top - 4,
+                            'font-size': 10, 'text-anchor': 'end', class: 'marg-axis-label'
                         });
                         data.textContent = 'Data (t=1)';
                         data.setAttribute('fill', '#888');
@@ -3659,8 +4096,8 @@
                     const content = svgEl('g', { 'clip-path': `url(#margClip${pi})` });
 
                     const targetsG = svgEl('g', { class: 'marg-targets' });
-                    const targetEls = simTargets.map(() => {
-                        const c = svgEl('circle', { r: 2.5, class: 'marg-target' });
+                    const targetEls = marg.targets.map(() => {
+                        const c = svgEl('circle', { r: 1.8, class: 'marg-target' });
                         targetsG.appendChild(c);
                         return c;
                     });
@@ -3674,23 +4111,34 @@
                     });
                     content.appendChild(cloudG);
 
+                    const x0G = svgEl('g', { class: 'marg-x0' });
+                    const x0DotEls = marg.seeds.map(() => {
+                        const c = svgEl('circle', { r: 2, class: 'marg-x0-dot' });
+                        x0G.appendChild(c);
+                        return c;
+                    });
+                    content.appendChild(x0G);
+
                     const trailsG = svgEl('g', { class: 'marg-trails' });
                     const trailEls = [];
-                    for (let ti = 0; ti < marg.seeds.length; ti += MARG_TRAIL_STEP) {
+                    const trailIndices = new Set();
+                    for (let ti = 0; ti < marg.seeds.length; ti += MARG_TRAIL_STEP) trailIndices.add(ti);
+                    trailIndices.add(marg.heroIdx);
+                    [...trailIndices].sort((a, b) => a - b).forEach(ti => {
                         const path = svgEl('path', {
                             class: 'marg-trail',
                             stroke: MARG_TRAIL_COLORS[pi],
                             'stroke-width': 1.35
                         });
                         trailsG.appendChild(path);
-                        trailEls.push({ path, particleIdx: ti });
-                    }
+                        trailEls.push({ path, particleIdx: ti, isHero: ti === marg.heroIdx });
+                    });
                     content.appendChild(trailsG);
 
                     g.appendChild(content);
                     marginalSvg.appendChild(g);
 
-                    return { panel, targetEls, trailEls, dotEls, frame: g.querySelector('.marg-frame'), labelEl, axisLabelEls };
+                    return { panel, targetEls, x0DotEls, trailEls, dotEls, frame: g.querySelector('.marg-frame'), labelEl, axisLabelEls };
                 });
             }
 
@@ -3701,15 +4149,20 @@
                 if (btnMargPlay) btnMargPlay.textContent = startPlaying ? '⏸' : '▶';
             }
 
-            function snapMarginalParticlesAtT1() {
+            function finalizeMarginalAtT1() {
+                const tFinal = 0.9995;
+                const settleSteps = 80;
                 MARG_PANELS.forEach((cfg, pi) => {
                     for (const p of marg.panelParticles[pi]) {
-                        snapParticleAtT1(p, cfg.mode, simTargets, PRIOR_CENTER_2, PRIOR_SIGMA_2);
+                        for (let s = 0; s < settleSteps; s++) {
+                            advanceParticle2D(
+                                p, cfg.mode, cfg.interval, tFinal, margDt,
+                                marg.targets, PRIOR_CENTER_2, PRIOR_SIGMA_2,
+                                null, 0.001
+                            );
+                        }
                         if (p.history) {
-                            const last = p.history[p.history.length - 1];
-                            if (!last || last.x !== p.x || last.y !== p.y) {
-                                p.history.push({ x: p.x, y: p.y });
-                            }
+                            p.history.push({ x: p.x, y: p.y });
                         }
                     }
                 });
@@ -3725,7 +4178,8 @@
                         for (const p of marg.panelParticles[pi]) {
                             advanceParticle2D(
                                 p, cfg.mode, cfg.interval, t, margDt,
-                                simTargets, PRIOR_CENTER_2, PRIOR_SIGMA_2
+                                marg.targets, PRIOR_CENTER_2, PRIOR_SIGMA_2,
+                                null, 0.003
                             );
                             if (recordHistory && p.history) {
                                 p.history.push({ x: p.x, y: p.y });
@@ -3735,7 +4189,7 @@
                 }
                 if (marg.t >= 1.0) {
                     marg.t = 1.0;
-                    snapMarginalParticlesAtT1();
+                    finalizeMarginalAtT1();
                     marg.running = false;
                     if (btnMargPlay) btnMargPlay.textContent = '▶';
                 }
@@ -3744,8 +4198,10 @@
             function renderMarginalSvg() {
                 const th = getVizTheme();
                 const cloudFill = VizSettings.bgMode === 'light' ? '#1565c0' : '#4fc3f7';
-                const cloudOpacity = vizAlpha(0.55, 'hump');
-                const trailOpacity = vizAlpha(0.68, 'trace');
+                const cloudOpacity = vizAlpha(0.5, 'hump');
+                const targetOpacity = vizAlpha(0.1, 'hump');
+                const x0Opacity = vizAlpha(0.35, 'hump');
+                const trailOpacity = vizAlpha(0.1, 'trace');
 
                 marg.dom.time.setAttribute('fill', th.textBright);
                 marg.dom.time.textContent = `t = ${marg.t.toFixed(2)}`;
@@ -3758,27 +4214,38 @@
                     dom.labelEl.setAttribute('fill', th.text);
                     dom.axisLabelEls.forEach(el => el.setAttribute('fill', th.textMuted));
 
-                    simTargets.forEach((z, zi) => {
+                    marg.targets.forEach((z, zi) => {
                         const pt = margToSvg(z.x, z.y, panel);
                         dom.targetEls[zi].setAttribute('cx', pt.x);
                         dom.targetEls[zi].setAttribute('cy', pt.y);
                         dom.targetEls[zi].setAttribute('fill', '#4fc3f7');
-                        dom.targetEls[zi].setAttribute('fill-opacity', vizAlpha(0.45, 'hump'));
+                        dom.targetEls[zi].setAttribute('fill-opacity', targetOpacity);
                     });
 
-                    dom.trailEls.forEach(({ path, particleIdx }) => {
+                    dom.x0DotEls.forEach((circle, i) => {
+                        const pt = margToSvg(marg.seeds[i].x, marg.seeds[i].y, panel);
+                        circle.setAttribute('cx', pt.x);
+                        circle.setAttribute('cy', pt.y);
+                        circle.setAttribute('fill', th.textMuted);
+                        circle.setAttribute('fill-opacity', x0Opacity);
+                    });
+
+                    dom.trailEls.forEach(({ path, particleIdx, isHero }) => {
                         const p = particles[particleIdx];
                         path.setAttribute('d', trailPathD(p, panel));
-                        path.setAttribute('stroke-opacity', trailOpacity);
+                        path.setAttribute('stroke-opacity', isHero ? 1 : trailOpacity);
+                        path.setAttribute('stroke-width', isHero ? 1.75 : 1.0);
                     });
 
                     dom.dotEls.forEach((circle, i) => {
                         const p = particles[i];
                         const pt = margToSvg(p.x, p.y, panel);
+                        const isHero = i === marg.heroIdx;
                         circle.setAttribute('cx', pt.x);
                         circle.setAttribute('cy', pt.y);
-                        circle.setAttribute('fill', cloudFill);
-                        circle.setAttribute('fill-opacity', cloudOpacity);
+                        circle.setAttribute('fill', isHero ? MARG_TRAIL_COLORS[pi] : cloudFill);
+                        circle.setAttribute('fill-opacity', isHero ? 1 : cloudOpacity);
+                        circle.setAttribute('r', isHero ? 3.2 : 2.2);
                     });
                 });
 
@@ -3808,6 +4275,1063 @@
             }
             registerVizRefresh(renderMarginalSvg);
             loopMarginal();
+        }
+
+        // =========================================
+        // TRAIN VIZ: Univariate regression animation (slide 25)
+        // =========================================
+        // =========================================
+        // AVG LEARN VIZ: SGD on a scalar (slide 25)
+        // =========================================
+        const avgLearnSvg = document.getElementById('avgLearnSvg');
+        const btnAvgPlay = document.getElementById('btnAvgPlay');
+        const btnAvgReset = document.getElementById('btnAvgReset');
+        const avgLossTypeSel = document.getElementById('avgLossType');
+        const avgLearnRateInput = document.getElementById('avgLearnRate');
+        const avgLearnRateVal = document.getElementById('avgLearnRateVal');
+        const avgLearnStatsEl = document.getElementById('avgLearnStats');
+
+        if (avgLearnSvg) {
+            const AL_W = 720, AL_H = 280;
+            const AL_X0 = 50, AL_X1 = 670;
+            const AL_Y_PDF_BASE = 128;
+            const AL_Y_PDF_TOP = 34;
+            const AL_Y_LINE = 158;
+            const AL_Y_SAMPLE_BOT = 182;
+            const AL_Y_HIST_TOP = 196;
+            const AL_Y_HIST_BOT = 268;
+            const AL_HUBER_DELTA = 25;
+            const AL_DATA_LO = 55, AL_DATA_HI = 395;
+
+            function sampleSkewData() {
+                if (Math.random() < 0.22) return 68 + Math.random() * 38;
+                const u = Math.random();
+                return 118 + 195 * Math.pow(u, 0.42);
+            }
+
+            function buildSkewRef() {
+                const xs = [];
+                for (let i = 0; i < 60000; i++) xs.push(sampleSkewData());
+                xs.sort((a, b) => a - b);
+                const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+                const median = xs[Math.floor(xs.length / 2)];
+
+                let huber = mean;
+                for (let iter = 0; iter < 80; iter++) {
+                    let g = 0;
+                    for (const x of xs) {
+                        const e = huber - x;
+                        if (Math.abs(e) <= AL_HUBER_DELTA) g += e;
+                        else g += AL_HUBER_DELTA * Math.sign(e);
+                    }
+                    huber -= 0.15 * g / xs.length;
+                }
+
+                let maxPdf = 0;
+                const pdf = v => {
+                    let c = 0;
+                    for (const x of xs) c += Math.exp(-((v - x) ** 2) / (2 * 18 * 18));
+                    return c;
+                };
+                for (let v = AL_DATA_LO; v <= AL_DATA_HI; v += 4) maxPdf = Math.max(maxPdf, pdf(v));
+                return { mean, median, huber, xs, pdf, maxPdf };
+            }
+
+            const AL_REF = buildSkewRef();
+
+            const AL_LOSSES = {
+                l2: {
+                    label: 'mean',
+                    target: r => r.mean,
+                    lrScale: 5,
+                    isBregman: true
+                },
+                poisson: {
+                    label: 'mean',
+                    target: r => r.mean,
+                    lrScale: 90,
+                    isBregman: true,
+                    thetaMin: 25
+                },
+                l1: {
+                    label: 'L1',
+                    target: r => r.median,
+                    lrScale: 6,
+                    isBregman: false
+                },
+                huber: {
+                    label: 'Huber',
+                    target: r => r.huber,
+                    lrScale: 2,
+                    isBregman: false
+                }
+            };
+
+            function clampAvgTheta(theta, kind) {
+                const spec = AL_LOSSES[kind];
+                if (spec && spec.thetaMin) return Math.max(spec.thetaMin, theta);
+                return theta;
+            }
+
+            function lossGrad(theta, z, kind) {
+                const th = clampAvgTheta(theta, kind);
+                const e = th - z;
+                if (kind === 'l1') return Math.sign(e) || 0;
+                if (kind === 'huber') {
+                    if (Math.abs(e) <= AL_HUBER_DELTA) return e / AL_HUBER_DELTA;
+                    return Math.sign(e);
+                }
+                if (kind === 'poisson') {
+                    // ∂/∂θ of Poisson NLL θ − z log θ  (Bregman from φ(x)=x log x − x)
+                    return 1 - z / th;
+                }
+                return (2 * e) / 140;
+            }
+
+            function lossTarget(kind) {
+                const spec = AL_LOSSES[kind] || AL_LOSSES.l2;
+                return spec.target(AL_REF);
+            }
+
+            function lossTargetLabel(kind) {
+                const spec = AL_LOSSES[kind] || AL_LOSSES.l2;
+                return spec.label;
+            }
+
+            function lossLrScale(kind) {
+                return (AL_LOSSES[kind] || AL_LOSSES.l2).lrScale;
+            }
+
+            function alX(v) {
+                return AL_X0 + (v - AL_DATA_LO) / (AL_DATA_HI - AL_DATA_LO) * (AL_X1 - AL_X0);
+            }
+
+            function valToHistY(v) {
+                const t = (v - AL_DATA_LO) / (AL_DATA_HI - AL_DATA_LO);
+                return AL_Y_HIST_BOT - t * (AL_Y_HIST_BOT - AL_Y_HIST_TOP);
+            }
+
+            function histStepToX(step, maxStep) {
+                return AL_X0 + (step / Math.max(maxStep, 1)) * (AL_X1 - AL_X0);
+            }
+
+            const al = {
+                running: false,
+                theta: 300,
+                step: 0,
+                lr: 0.012,
+                lossType: 'l2',
+                recent: [],
+                thetaHist: [],
+                lastFrame: performance.now()
+            };
+            const aldom = {};
+
+            function resetAvgLearn() {
+                al.theta = 300;
+                al.step = 0;
+                al.recent = [];
+                al.thetaHist = [{ step: 0, theta: al.theta }];
+            }
+
+            function avgSgdStep() {
+                const z = sampleSkewData();
+                const grad = lossGrad(al.theta, z, al.lossType);
+                al.theta -= al.lr * lossLrScale(al.lossType) * grad;
+                al.theta = clampAvgTheta(al.theta, al.lossType);
+                al.step++;
+                al.recent.push({ z, step: al.step });
+                if (al.recent.length > 45) al.recent.shift();
+                if (al.step % 2 === 0 || al.thetaHist.length < 2) {
+                    al.thetaHist.push({ step: al.step, theta: al.theta });
+                }
+            }
+
+            function buildAvgLearnSvg() {
+                avgLearnSvg.replaceChildren();
+                aldom.pdfPath = svgEl('path');
+                aldom.axisLine = svgEl('line', { 'stroke-width': 1.5 });
+                aldom.sampleBand = svgEl('rect', { fill: 'none', 'stroke-width': 1 });
+                aldom.histBand = svgEl('rect', { fill: 'none', 'stroke-width': 1 });
+                aldom.meanLineTop = svgEl('line', { 'stroke-width': 1.5, 'stroke-dasharray': '4 4' });
+                aldom.meanLineSample = svgEl('line', { 'stroke-width': 2, 'stroke-dasharray': '4 4' });
+                aldom.meanLineHist = svgEl('line', { 'stroke-width': 1.5, 'stroke-dasharray': '4 4' });
+                aldom.targetLineSample = svgEl('line', { 'stroke-width': 2, 'stroke-dasharray': '6 5' });
+                aldom.targetLineHist = svgEl('line', { 'stroke-width': 1.5, 'stroke-dasharray': '6 5' });
+                aldom.thetaLineSample = svgEl('line', { 'stroke-width': 3 });
+                aldom.thetaHistPath = svgEl('path', { fill: 'none', 'stroke-width': 2 });
+                aldom.samplesG = svgEl('g');
+                aldom.samplePool = [];
+                for (let i = 0; i < 45; i++) {
+                    const c = svgEl('circle', { r: 5, visibility: 'hidden' });
+                    aldom.samplesG.appendChild(c);
+                    aldom.samplePool.push(c);
+                }
+                aldom.meanLabel = svgEl('text', { 'font-size': 10 });
+                aldom.targetLabel = svgEl('text', { 'font-size': 10 });
+                aldom.thetaLabel = svgEl('text', { 'font-size': 10, 'text-anchor': 'end' });
+                aldom.histLabel = svgEl('text', { 'font-size': 10 });
+                aldom.title = svgEl('text', { x: AL_W / 2, y: 16, 'text-anchor': 'middle', 'font-size': 12 });
+                avgLearnSvg.appendChild(aldom.pdfPath);
+                avgLearnSvg.appendChild(aldom.sampleBand);
+                avgLearnSvg.appendChild(aldom.histBand);
+                avgLearnSvg.appendChild(aldom.meanLineTop);
+                avgLearnSvg.appendChild(aldom.meanLineSample);
+                avgLearnSvg.appendChild(aldom.meanLineHist);
+                avgLearnSvg.appendChild(aldom.targetLineSample);
+                avgLearnSvg.appendChild(aldom.targetLineHist);
+                avgLearnSvg.appendChild(aldom.thetaHistPath);
+                avgLearnSvg.appendChild(aldom.axisLine);
+                avgLearnSvg.appendChild(aldom.samplesG);
+                avgLearnSvg.appendChild(aldom.thetaLineSample);
+                avgLearnSvg.appendChild(aldom.meanLabel);
+                avgLearnSvg.appendChild(aldom.targetLabel);
+                avgLearnSvg.appendChild(aldom.thetaLabel);
+                avgLearnSvg.appendChild(aldom.histLabel);
+                avgLearnSvg.appendChild(aldom.title);
+            }
+
+            function renderAvgLearn() {
+                const th = getVizTheme();
+                let dPdf = `M ${alX(AL_DATA_LO).toFixed(1)} ${AL_Y_PDF_BASE}`;
+                for (let v = AL_DATA_LO; v <= AL_DATA_HI; v += 3) {
+                    const p = AL_REF.pdf(v) / AL_REF.maxPdf;
+                    dPdf += ` L ${alX(v).toFixed(1)} ${(AL_Y_PDF_BASE - p * (AL_Y_PDF_BASE - AL_Y_PDF_TOP - 6)).toFixed(1)}`;
+                }
+                dPdf += ` L ${alX(AL_DATA_HI).toFixed(1)} ${AL_Y_PDF_BASE} Z`;
+                aldom.pdfPath.setAttribute('d', dPdf);
+                aldom.pdfPath.setAttribute('fill', th.humpGray);
+                aldom.pdfPath.setAttribute('fill-opacity', vizAlpha(0.2, 'hump'));
+
+                aldom.axisLine.setAttribute('x1', AL_X0);
+                aldom.axisLine.setAttribute('x2', AL_X1);
+                aldom.axisLine.setAttribute('y1', AL_Y_LINE);
+                aldom.axisLine.setAttribute('y2', AL_Y_LINE);
+                aldom.axisLine.setAttribute('stroke', th.axis);
+
+                aldom.sampleBand.setAttribute('x', AL_X0);
+                aldom.sampleBand.setAttribute('y', AL_Y_PDF_BASE);
+                aldom.sampleBand.setAttribute('width', AL_X1 - AL_X0);
+                aldom.sampleBand.setAttribute('height', AL_Y_SAMPLE_BOT - AL_Y_PDF_BASE);
+                aldom.sampleBand.setAttribute('stroke', th.axis);
+                aldom.sampleBand.setAttribute('stroke-opacity', 0.35);
+
+                aldom.histBand.setAttribute('x', AL_X0);
+                aldom.histBand.setAttribute('y', AL_Y_HIST_TOP);
+                aldom.histBand.setAttribute('width', AL_X1 - AL_X0);
+                aldom.histBand.setAttribute('height', AL_Y_HIST_BOT - AL_Y_HIST_TOP);
+                aldom.histBand.setAttribute('stroke', th.axis);
+                aldom.histBand.setAttribute('stroke-opacity', 0.35);
+
+                const target = lossTarget(al.lossType);
+                const meanX = alX(AL_REF.mean);
+                const tx = alX(target);
+                const thx = alX(al.theta);
+
+                function setVertLine(el, x, y0, y1, stroke, opacity, vis = true) {
+                    el.setAttribute('x1', x);
+                    el.setAttribute('x2', x);
+                    el.setAttribute('y1', y0);
+                    el.setAttribute('y2', y1);
+                    el.setAttribute('stroke', stroke);
+                    el.setAttribute('stroke-opacity', opacity);
+                    el.setAttribute('visibility', vis ? 'visible' : 'hidden');
+                }
+
+                function setHorizLine(el, y, stroke, opacity, vis = true) {
+                    el.setAttribute('x1', AL_X0);
+                    el.setAttribute('x2', AL_X1);
+                    el.setAttribute('y1', y);
+                    el.setAttribute('y2', y);
+                    el.setAttribute('stroke', stroke);
+                    el.setAttribute('stroke-opacity', opacity);
+                    el.setAttribute('visibility', vis ? 'visible' : 'hidden');
+                }
+
+                setVertLine(aldom.meanLineTop, meanX, AL_Y_PDF_TOP, AL_Y_PDF_BASE, '#ffb74d', 0.35);
+                setVertLine(aldom.meanLineSample, meanX, AL_Y_PDF_BASE, AL_Y_SAMPLE_BOT, '#ffb74d', 0.85);
+                setHorizLine(aldom.meanLineHist, valToHistY(AL_REF.mean), '#ffb74d', 0.75);
+                aldom.meanLabel.setAttribute('x', meanX + 4);
+                aldom.meanLabel.setAttribute('y', AL_Y_SAMPLE_BOT - 4);
+                aldom.meanLabel.setAttribute('fill', '#ffb74d');
+                aldom.meanLabel.textContent = 'mean';
+
+                const showAltTarget = !(AL_LOSSES[al.lossType] && AL_LOSSES[al.lossType].isBregman);
+                setVertLine(aldom.targetLineSample, tx, AL_Y_PDF_BASE, AL_Y_SAMPLE_BOT, '#ef5350', 0.85, showAltTarget);
+                setHorizLine(aldom.targetLineHist, valToHistY(target), '#ef5350', 0.65, showAltTarget);
+                aldom.targetLabel.setAttribute('x', tx + 4);
+                aldom.targetLabel.setAttribute('y', AL_Y_PDF_BASE + 14);
+                aldom.targetLabel.setAttribute('fill', '#ef5350');
+                aldom.targetLabel.setAttribute('visibility', showAltTarget ? 'visible' : 'hidden');
+                aldom.targetLabel.textContent = lossTargetLabel(al.lossType);
+
+                setVertLine(aldom.thetaLineSample, thx, AL_Y_PDF_BASE, AL_Y_SAMPLE_BOT, '#81c784', 0.95);
+                aldom.thetaLabel.setAttribute('x', thx - 5);
+                aldom.thetaLabel.setAttribute('y', AL_Y_LINE - 8);
+                aldom.thetaLabel.setAttribute('fill', '#81c784');
+                aldom.thetaLabel.textContent = `θ̂=${al.theta.toFixed(0)}`;
+
+                const hist = al.thetaHist;
+                if (hist.length >= 2) {
+                    const hSteps = Math.max(hist[hist.length - 1].step, 1);
+                    let dH = '';
+                    hist.forEach((h, i) => {
+                        const px = histStepToX(h.step, hSteps);
+                        const py = valToHistY(h.theta);
+                        dH += (i === 0 ? 'M' : 'L') + ` ${px.toFixed(1)} ${py.toFixed(1)}`;
+                    });
+                    aldom.thetaHistPath.setAttribute('d', dH);
+                    aldom.thetaHistPath.setAttribute('stroke', '#7986cb');
+                    aldom.thetaHistPath.setAttribute('stroke-opacity', 0.9);
+                    aldom.thetaHistPath.setAttribute('visibility', 'visible');
+                } else {
+                    aldom.thetaHistPath.setAttribute('visibility', 'hidden');
+                }
+
+                aldom.histLabel.setAttribute('x', AL_X0 + 4);
+                aldom.histLabel.setAttribute('y', AL_Y_HIST_TOP + 12);
+                aldom.histLabel.setAttribute('fill', th.textMuted);
+                aldom.histLabel.textContent = 'θ̂ vs step';
+
+                aldom.samplePool.forEach((c, i) => {
+                    if (i < al.recent.length) {
+                        const s = al.recent[i];
+                        c.setAttribute('cx', alX(s.z));
+                        c.setAttribute('cy', AL_Y_LINE);
+                        c.setAttribute('fill', '#ffb74d');
+                        c.setAttribute('fill-opacity', 0.35 + 0.65 * (i / Math.max(1, al.recent.length - 1)));
+                        c.setAttribute('visibility', 'visible');
+                    } else c.setAttribute('visibility', 'hidden');
+                });
+
+                aldom.title.setAttribute('fill', th.textMuted);
+                aldom.title.textContent = 'Skewed density (top) · samples + reference lines (middle) · θ̂ trajectory (bottom)';
+
+                if (avgLearnStatsEl) {
+                    const breg = AL_LOSSES[al.lossType] && AL_LOSSES[al.lossType].isBregman;
+                    avgLearnStatsEl.textContent = `θ̂: ${al.theta.toFixed(1)}  |  mean: ${AL_REF.mean.toFixed(1)}${breg ? '' : `  |  ${lossTargetLabel(al.lossType)}: ${target.toFixed(1)}`}  |  step: ${al.step}`;
+                }
+            }
+
+            function tickAvgLearn(now) {
+                if (al.running) {
+                    const dt = Math.min(0.05, (now - al.lastFrame) / 1000);
+                    al.lastFrame = now;
+                    const n = Math.max(1, Math.floor(dt * 28));
+                    for (let i = 0; i < n; i++) avgSgdStep();
+                }
+                renderAvgLearn();
+                requestAnimationFrame(tickAvgLearn);
+            }
+
+            buildAvgLearnSvg();
+            resetAvgLearn();
+
+            if (btnAvgPlay) {
+                btnAvgPlay.addEventListener('click', () => {
+                    al.running = !al.running;
+                    al.lastFrame = performance.now();
+                    btnAvgPlay.textContent = al.running ? '⏸' : '▶';
+                });
+            }
+            if (btnAvgReset) {
+                btnAvgReset.addEventListener('click', () => {
+                    al.running = false;
+                    if (btnAvgPlay) btnAvgPlay.textContent = '▶';
+                    resetAvgLearn();
+                });
+            }
+            if (avgLossTypeSel) {
+                avgLossTypeSel.addEventListener('change', () => {
+                    al.lossType = avgLossTypeSel.value;
+                    resetAvgLearn();
+                });
+            }
+            if (avgLearnRateInput) {
+                avgLearnRateInput.addEventListener('input', () => {
+                    al.lr = parseFloat(avgLearnRateInput.value) || 0.012;
+                    if (avgLearnRateVal) avgLearnRateVal.textContent = al.lr.toFixed(3);
+                });
+            }
+
+            registerVizRefresh(renderAvgLearn);
+            requestAnimationFrame(tickAvgLearn);
+        }
+
+        // =========================================
+        // TRAIN VIZ: Flow matching regression (slide 26)
+        // =========================================
+        const trainVizSvg = document.getElementById('trainVizSvg');
+        const trainLossSvg = document.getElementById('trainLossSvg');
+        const btnTrainPlay = document.getElementById('btnTrainPlay');
+        const btnTrainReset = document.getElementById('btnTrainReset');
+        const trainSpeedInput = document.getElementById('trainSpeed');
+        const trainSpeedVal = document.getElementById('trainSpeedVal');
+        const trainStatsEl = document.getElementById('trainStats');
+        const trainShowDemoCb = document.getElementById('trainShowDemo');
+        const trainShowFieldCb = document.getElementById('trainShowField');
+
+        if (trainVizSvg) {
+            const TR_PHASE_DUR = { pick: 0.28, connect: 0.38, sample_t: 0.5, predict: 0.4, error: 0.35, update: 0.3, hold: 0.75 };
+            const TR_PHASE_ORDER = ['pick', 'connect', 'sample_t', 'predict', 'error', 'update', 'hold'];
+            const TR_MAX_TRAIN_DOTS = 350;
+            const TR_VF_T = 16, TR_VF_Y = 12;
+            const TR_VF_ARROW_LEN = 20;
+            const TR_VF_DT_REF = 0.035;
+
+            function trX(t) { return fmX(t); }
+
+            const tr = {
+                running: false,
+                speed: 10,
+                showDemo: true,
+                showField: true,
+                phase: 'pick',
+                phaseT: 0,
+                stepCount: 0,
+                demo: null,
+                pendingStep: null,
+                fieldDirty: true,
+                lastFrame: performance.now()
+            };
+
+            const trdom = {};
+            const lossdom = {};
+
+            function buildTrainSvg() {
+                trainVizSvg.replaceChildren();
+                trdom.priorHump = svgEl('path', { class: 'viz-prior-hump' });
+                trainVizSvg.appendChild(trdom.priorHump);
+
+                trdom.priorLabel = svgEl('text', { x: FM_VIZ.X0 + 2, y: 18, 'font-size': 12 });
+                trdom.dataLabel = svgEl('text', { x: FM_VIZ.W - 6, y: 18, 'font-size': 12, 'text-anchor': 'end' });
+                trdom.phaseLabel = svgEl('text', { x: FM_VIZ.W / 2, y: 18, 'text-anchor': 'middle', 'font-size': 12 });
+                trainVizSvg.appendChild(trdom.priorLabel);
+                trainVizSvg.appendChild(trdom.dataLabel);
+                trainVizSvg.appendChild(trdom.phaseLabel);
+
+                trdom.dataHumpG = svgEl('g', { class: 'train-data-humps' });
+                trdom.dataMixtureHump = svgEl('path', { class: 'viz-data-hump' });
+                trdom.dataHumpG.appendChild(trdom.dataMixtureHump);
+                trainVizSvg.appendChild(trdom.dataHumpG);
+
+                trdom.modelFieldG = svgEl('g', { class: 'train-vel-field' });
+                trdom.velArrows = [];
+                for (let i = 0; i < TR_VF_T * TR_VF_Y; i++) {
+                    const ar = makeSvgArrow();
+                    trdom.modelFieldG.appendChild(ar.g);
+                    trdom.velArrows.push(ar);
+                }
+                trainVizSvg.appendChild(trdom.modelFieldG);
+
+                trdom.trainDotsG = svgEl('g', { class: 'train-dots' });
+                trdom.trainDotPool = [];
+                for (let i = 0; i < TR_MAX_TRAIN_DOTS; i++) {
+                    const c = svgEl('circle', { r: 1.6, visibility: 'hidden' });
+                    trdom.trainDotsG.appendChild(c);
+                    trdom.trainDotPool.push(c);
+                }
+                trainVizSvg.appendChild(trdom.trainDotsG);
+
+                trdom.demoG = svgEl('g', { class: 'train-demo' });
+                trdom.worldline = svgEl('path', { fill: 'none', 'stroke-width': 2, 'stroke-linecap': 'round' });
+                trdom.x0Dot = svgEl('circle', { r: 6, fill: '#90caf9' });
+                trdom.x1Dot = svgEl('circle', { r: 6, fill: '#ffb74d' });
+                trdom.xtDot = svgEl('circle', { r: 7, fill: '#81c784' });
+                trdom.x1HatDot = svgEl('circle', { r: 6, fill: '#ef5350' });
+                trdom.errorLine = svgEl('line', { 'stroke-width': 2.5, 'stroke-dasharray': '5 4' });
+                trdom.predArrow = makeSvgArrow();
+                trdom.demoG.appendChild(trdom.worldline);
+                trdom.demoG.appendChild(trdom.x0Dot);
+                trdom.demoG.appendChild(trdom.x1Dot);
+                trdom.demoG.appendChild(trdom.xtDot);
+                trdom.demoG.appendChild(trdom.x1HatDot);
+                trdom.demoG.appendChild(trdom.errorLine);
+                trdom.demoG.appendChild(trdom.predArrow.g);
+                trainVizSvg.appendChild(trdom.demoG);
+            }
+
+            function buildLossSvg() {
+                if (!trainLossSvg) return;
+                trainLossSvg.replaceChildren();
+                lossdom.label = svgEl('text', { x: 6, y: 14, 'font-size': 11 });
+                lossdom.gridLine = svgEl('line', { 'stroke-width': 1 });
+                lossdom.pathLoss = svgEl('path', { fill: 'none', 'stroke-width': 2 });
+                lossdom.dotStart = svgEl('circle', { r: 4, fill: '#7986cb' });
+                lossdom.dotEnd = svgEl('circle', { r: 4, fill: '#ef5350' });
+                trainLossSvg.appendChild(lossdom.label);
+                trainLossSvg.appendChild(lossdom.gridLine);
+                trainLossSvg.appendChild(lossdom.pathLoss);
+                trainLossSvg.appendChild(lossdom.dotStart);
+                trainLossSvg.appendChild(lossdom.dotEnd);
+            }
+
+            function demoFromStep(step) {
+                tr.demo = {
+                    x0: step.x0, x1: step.x1, tTarget: step.t, t: 0, xt: step.x0,
+                    x1Hat: null, x1HatBefore: step.x1Hat, x1HatAfter: null,
+                    show: { x0: false, x1: false, line: false, xt: false, hat: false, err: false }
+                };
+                tr.phase = 'pick';
+                tr.phaseT = 0;
+                tr.pendingStep = step;
+            }
+
+            function startNewDemo() {
+                demoFromStep(gmKernelRegressor.trainStep());
+                tr.stepCount++;
+                tr.fieldDirty = true;
+            }
+
+            function trainDemoPhaseRate() {
+                if (tr.speed <= 1) return tr.speed * 0.3;
+                return Math.min(tr.speed, 40);
+            }
+
+            function formatTrainSpeed(s) {
+                return (s < 1 ? s.toFixed(2) : String(Math.round(s * 100) / 100)) + '×';
+            }
+
+            function advanceTrainPhase() {
+                const d = tr.demo;
+                if (!d) return;
+
+                if (tr.phase === 'pick') {
+                    d.show.x0 = tr.phaseT > 0.08;
+                    d.show.x1 = tr.phaseT > 0.18;
+                } else if (tr.phase === 'connect') {
+                    d.show.x0 = true;
+                    d.show.x1 = true;
+                    d.show.line = true;
+                } else if (tr.phase === 'sample_t') {
+                    d.show.line = true;
+                    d.show.x0 = true;
+                    d.show.x1 = true;
+                    const u = Math.min(1, tr.phaseT / TR_PHASE_DUR.sample_t);
+                    const ease = u * u * (3 - 2 * u);
+                    d.t = d.tTarget * ease;
+                    d.xt = (1 - d.t) * d.x0 + d.t * d.x1;
+                    d.show.xt = tr.phaseT > 0.05;
+                } else if (tr.phase === 'predict') {
+                    d.show.xt = true;
+                    d.show.line = true;
+                    if (d.x1Hat === null) d.x1Hat = d.x1HatBefore;
+                    d.show.hat = tr.phaseT > 0.06;
+                } else if (tr.phase === 'error') {
+                    d.show.hat = true;
+                    d.show.err = tr.phaseT > 0.05;
+                } else if (tr.phase === 'update') {
+                    d.show.err = true;
+                    if (d.x1HatAfter === null && tr.pendingStep) {
+                        d.x1HatAfter = gmKernelRegressor.predictX1(d.t, d.xt);
+                        tr.pendingStep = null;
+                    }
+                    const u = Math.min(1, tr.phaseT / TR_PHASE_DUR.update);
+                    const after = d.x1HatAfter !== null ? d.x1HatAfter : d.x1HatBefore;
+                    d.x1Hat = d.x1HatBefore + (after - d.x1HatBefore) * u;
+                } else if (tr.phase === 'hold') {
+                    d.show.x0 = true;
+                    d.show.x1 = true;
+                    d.show.line = true;
+                    d.show.xt = true;
+                    d.show.hat = true;
+                    d.show.err = true;
+                    if (d.x1HatAfter !== null) d.x1Hat = d.x1HatAfter;
+                }
+            }
+
+            function tickTrainDemo() {
+                const now = performance.now();
+                const dt = Math.min(0.05, (now - tr.lastFrame) / 1000);
+                tr.lastFrame = now;
+                tr.phaseT += dt * trainDemoPhaseRate();
+
+                if (!tr.demo) startNewDemo();
+                advanceTrainPhase();
+
+                const dur = TR_PHASE_DUR[tr.phase];
+                if (tr.phaseT >= dur) {
+                    const idx = TR_PHASE_ORDER.indexOf(tr.phase);
+                    if (idx < TR_PHASE_ORDER.length - 1) {
+                        tr.phase = TR_PHASE_ORDER[idx + 1];
+                        tr.phaseT = 0;
+                    } else {
+                        startNewDemo();
+                    }
+                }
+            }
+
+            function tickTrainFast() {
+                const nSteps = Math.max(1, Math.floor(tr.speed * 3));
+                for (let i = 0; i < nSteps; i++) {
+                    gmKernelRegressor.trainStep();
+                    tr.stepCount++;
+                }
+                tr.fieldDirty = true;
+            }
+
+            function flowArrowSeg(t, y) {
+                const t0 = Math.min(Math.max(t, 0), 1 - 1e-5);
+                const dt = Math.min(TR_VF_DT_REF, 1 - 1e-5 - t0);
+                if (dt < 1e-5) return null;
+
+                const px0 = trX(t0);
+                const py0 = y;
+                const py1Full = gmKernelRegressor.flowStep(t0, y, dt);
+                let px1 = trX(t0 + dt);
+                const dx = px1 - px0;
+                const dy = py1Full - py0;
+                const len = Math.hypot(dx, dy);
+                if (len < 0.5) return null;
+                if (len > TR_VF_ARROW_LEN) {
+                    const s = TR_VF_ARROW_LEN / len;
+                    return { px0, py0, px1: px0 + dx * s, py1: py0 + dy * s };
+                }
+                return { px0, py0, px1, py1: py1Full };
+            }
+
+            function renderVectorField() {
+                if (!tr.showField) {
+                    trdom.velArrows.forEach(ar => {
+                        ar.line.setAttribute('visibility', 'hidden');
+                        ar.head.setAttribute('visibility', 'hidden');
+                    });
+                    return;
+                }
+                let ai = 0;
+                for (let ti = 0; ti < TR_VF_T; ti++) {
+                    const t = 0.04 + (ti / Math.max(1, TR_VF_T - 1)) * 0.955;
+                    for (let yi = 0; yi < TR_VF_Y; yi++) {
+                        const y = FM_VIZ.Y_TOP + (yi / (TR_VF_Y - 1)) * (FM_VIZ.Y_BOT - FM_VIZ.Y_TOP);
+                        const seg = flowArrowSeg(t, y);
+                        const ar = trdom.velArrows[ai++];
+                        if (!seg) {
+                            ar.line.setAttribute('visibility', 'hidden');
+                            ar.head.setAttribute('visibility', 'hidden');
+                            continue;
+                        }
+                        updateSvgArrow(ar, seg.px0, seg.py0, seg.px1, seg.py1, {
+                            color: '#ef5350', lineWidth: 1.1, alpha: 0.42, headlen: 6
+                        });
+                    }
+                }
+                for (; ai < trdom.velArrows.length; ai++) {
+                    trdom.velArrows[ai].line.setAttribute('visibility', 'hidden');
+                    trdom.velArrows[ai].head.setAttribute('visibility', 'hidden');
+                }
+            }
+
+            function renderTrainViz() {
+                const th = getVizTheme();
+                styleFm1DLayout(trdom, th);
+
+                if (tr.showDemo && tr.demo) {
+                    const phaseNames = {
+                        pick: 'Sample x₀, x₁ᶻ',
+                        connect: 'Conditional worldline',
+                        sample_t: 'Sample t ~ U(0,1) → x_t',
+                        predict: 'Model predicts x̂₁',
+                        error: 'MSE |Δ − Δ̂|, Δ = x₁ − x_t',
+                        update: 'Add to regressor',
+                        hold: 'Pause — sample stored'
+                    };
+                    trdom.phaseLabel.setAttribute('fill', th.textBright);
+                    trdom.phaseLabel.textContent = phaseNames[tr.phase];
+                } else {
+                    trdom.phaseLabel.setAttribute('fill', th.textMuted);
+                    trdom.phaseLabel.textContent = tr.running ? `Training… ${tr.stepCount} steps` : 'Fast training mode';
+                }
+
+                if (tr.showDemo) {
+                    const nShow = Math.min(gmKernelRegressor.samples.length, TR_MAX_TRAIN_DOTS);
+                    const startIdx = Math.max(0, gmKernelRegressor.samples.length - TR_MAX_TRAIN_DOTS);
+                    trdom.trainDotPool.forEach((c, i) => {
+                        if (i < nShow) {
+                            const s = gmKernelRegressor.samples[startIdx + i];
+                            c.setAttribute('cx', trX(s.t));
+                            c.setAttribute('cy', s.x);
+                            c.setAttribute('fill', '#7986cb');
+                            c.setAttribute('fill-opacity', vizAlpha(0.3, 'hump'));
+                            c.setAttribute('visibility', 'visible');
+                        } else {
+                            c.setAttribute('visibility', 'hidden');
+                        }
+                    });
+                } else {
+                    trdom.trainDotPool.forEach(c => c.setAttribute('visibility', 'hidden'));
+                }
+
+                if (tr.fieldDirty || tr.showField) renderVectorField();
+
+                const hideDemo = () => {
+                    trdom.worldline.setAttribute('visibility', 'hidden');
+                    trdom.x0Dot.setAttribute('visibility', 'hidden');
+                    trdom.x1Dot.setAttribute('visibility', 'hidden');
+                    trdom.xtDot.setAttribute('visibility', 'hidden');
+                    trdom.x1HatDot.setAttribute('visibility', 'hidden');
+                    trdom.errorLine.setAttribute('visibility', 'hidden');
+                    trdom.predArrow.line.setAttribute('visibility', 'hidden');
+                    trdom.predArrow.head.setAttribute('visibility', 'hidden');
+                };
+
+                if (!tr.showDemo || !tr.demo) { hideDemo(); return; }
+                const d = tr.demo;
+
+                if (d.show.line) {
+                    trdom.worldline.setAttribute('d', `M ${trX(0)} ${d.x0} L ${trX(1)} ${d.x1}`);
+                    trdom.worldline.setAttribute('stroke', '#78909c');
+                    trdom.worldline.setAttribute('stroke-opacity', vizAlpha(0.55, 'trace'));
+                    trdom.worldline.setAttribute('visibility', 'visible');
+                } else trdom.worldline.setAttribute('visibility', 'hidden');
+
+                if (d.show.x0) {
+                    trdom.x0Dot.setAttribute('cx', trX(0));
+                    trdom.x0Dot.setAttribute('cy', d.x0);
+                    trdom.x0Dot.setAttribute('visibility', 'visible');
+                } else trdom.x0Dot.setAttribute('visibility', 'hidden');
+
+                if (d.show.x1) {
+                    trdom.x1Dot.setAttribute('cx', FM_VIZ.X1);
+                    trdom.x1Dot.setAttribute('cy', d.x1);
+                    trdom.x1Dot.setAttribute('visibility', 'visible');
+                } else trdom.x1Dot.setAttribute('visibility', 'hidden');
+
+                if (d.show.xt) {
+                    trdom.xtDot.setAttribute('cx', trX(d.t));
+                    trdom.xtDot.setAttribute('cy', d.xt);
+                    trdom.xtDot.setAttribute('visibility', 'visible');
+                } else trdom.xtDot.setAttribute('visibility', 'hidden');
+
+                if (d.show.hat && d.x1Hat !== null) {
+                    trdom.x1HatDot.setAttribute('cx', FM_VIZ.X1);
+                    trdom.x1HatDot.setAttribute('cy', d.x1Hat);
+                    trdom.x1HatDot.setAttribute('visibility', 'visible');
+                    updateSvgArrow(trdom.predArrow, trX(d.t), d.xt, FM_VIZ.X1, d.x1Hat, {
+                        color: '#ef5350', lineWidth: 2, alpha: 0.85, headlen: 9
+                    });
+                } else {
+                    trdom.x1HatDot.setAttribute('visibility', 'hidden');
+                    trdom.predArrow.line.setAttribute('visibility', 'hidden');
+                    trdom.predArrow.head.setAttribute('visibility', 'hidden');
+                }
+
+                if (d.show.err && d.x1Hat !== null) {
+                    trdom.errorLine.setAttribute('x1', FM_VIZ.X1 - 10);
+                    trdom.errorLine.setAttribute('x2', FM_VIZ.X1 - 10);
+                    trdom.errorLine.setAttribute('y1', d.x1);
+                    trdom.errorLine.setAttribute('y2', d.x1Hat);
+                    trdom.errorLine.setAttribute('stroke', '#ff7043');
+                    trdom.errorLine.setAttribute('stroke-opacity', 0.9);
+                    trdom.errorLine.setAttribute('visibility', 'visible');
+                } else trdom.errorLine.setAttribute('visibility', 'hidden');
+            }
+
+            function renderLossPlot() {
+                if (!trainLossSvg || !lossdom.pathLoss) return;
+                const th = getVizTheme();
+                const LW = 720, LH = 96;
+                const padL = 42, padR = 8, padT = 22, padB = 14;
+                const plotW = LW - padL - padR;
+                const plotH = LH - padT - padB;
+                const hist = gmKernelRegressor.lossHistory;
+                const nRec = gmKernelRegressor.lossRecordEvery;
+                const nMc = gmKernelRegressor.lossMcSamples;
+
+                lossdom.label.setAttribute('fill', th.textMuted);
+                lossdom.label.textContent = `MSE (avg of ${nMc} draws, every ${nRec} steps)`;
+
+                if (hist.length < 1) {
+                    lossdom.pathLoss.setAttribute('d', '');
+                    lossdom.dotStart.setAttribute('visibility', 'hidden');
+                    lossdom.dotEnd.setAttribute('visibility', 'hidden');
+                    lossdom.gridLine.setAttribute('visibility', 'hidden');
+                    if (trainStatsEl) trainStatsEl.textContent = `steps: ${tr.stepCount}  |  loss: —`;
+                    return;
+                }
+
+                const xMax = Math.max(gmKernelRegressor.trainSteps, hist[hist.length - 1].step, 1);
+                const yMax = Math.max(500, ...hist.map(h => h.loss)) * 1.05;
+                const toX = step => padL + (step / xMax) * plotW;
+                const toY = v => padT + plotH - (v / yMax) * plotH;
+
+                let dLoss = '';
+                hist.forEach((h, i) => {
+                    dLoss += (i === 0 ? 'M' : 'L') + ` ${toX(h.step).toFixed(1)} ${toY(h.loss).toFixed(1)}`;
+                });
+                lossdom.pathLoss.setAttribute('d', dLoss);
+                lossdom.pathLoss.setAttribute('stroke', '#ef5350');
+                lossdom.pathLoss.setAttribute('stroke-opacity', 0.92);
+
+                const first = hist[0];
+                const last = hist[hist.length - 1];
+                lossdom.dotStart.setAttribute('cx', toX(first.step));
+                lossdom.dotStart.setAttribute('cy', toY(first.loss));
+                lossdom.dotStart.setAttribute('visibility', 'visible');
+                lossdom.dotEnd.setAttribute('cx', toX(last.step));
+                lossdom.dotEnd.setAttribute('cy', toY(last.loss));
+                lossdom.dotEnd.setAttribute('visibility', 'visible');
+
+                lossdom.gridLine.setAttribute('x1', padL);
+                lossdom.gridLine.setAttribute('x2', LW - padR);
+                lossdom.gridLine.setAttribute('y1', padT + plotH);
+                lossdom.gridLine.setAttribute('y2', padT + plotH);
+                lossdom.gridLine.setAttribute('stroke', th.axis);
+                lossdom.gridLine.setAttribute('visibility', 'visible');
+
+                if (trainStatsEl) {
+                    trainStatsEl.textContent = `steps: ${tr.stepCount}  |  loss: ${last.loss.toFixed(0)} (${nMc}-sample avg)`;
+                }
+            }
+
+            function loopTrain() {
+                if (tr.running) {
+                    if (tr.showDemo) tickTrainDemo();
+                    else tickTrainFast();
+                }
+                renderLossPlot();
+                if (tr.showDemo || tr.fieldDirty) {
+                    renderTrainViz();
+                    tr.fieldDirty = false;
+                } else if (tr.showField && tr.running) {
+                    renderVectorField();
+                }
+                requestAnimationFrame(loopTrain);
+            }
+
+            buildTrainSvg();
+            buildLossSvg();
+            startNewDemo();
+
+            if (btnTrainPlay) {
+                btnTrainPlay.addEventListener('click', () => {
+                    tr.running = !tr.running;
+                    tr.lastFrame = performance.now();
+                    btnTrainPlay.textContent = tr.running ? '⏸' : '▶';
+                });
+            }
+            if (btnTrainReset) {
+                btnTrainReset.addEventListener('click', () => {
+                    gmKernelRegressor.reset();
+                    tr.stepCount = 0;
+                    tr.fieldDirty = true;
+                    startNewDemo();
+                });
+            }
+            if (trainSpeedInput) {
+                trainSpeedInput.addEventListener('input', () => {
+                    tr.speed = parseFloat(trainSpeedInput.value) || 10;
+                    if (trainSpeedVal) trainSpeedVal.textContent = formatTrainSpeed(tr.speed);
+                });
+            }
+            if (trainShowDemoCb) {
+                trainShowDemoCb.addEventListener('change', () => {
+                    tr.showDemo = trainShowDemoCb.checked;
+                    tr.fieldDirty = true;
+                    if (tr.showDemo && !tr.demo) startNewDemo();
+                    renderTrainViz();
+                });
+            }
+            if (trainShowFieldCb) {
+                trainShowFieldCb.addEventListener('change', () => {
+                    tr.showField = trainShowFieldCb.checked;
+                    tr.fieldDirty = true;
+                    renderTrainViz();
+                });
+            }
+
+            registerVizRefresh(() => { renderTrainViz(); renderLossPlot(); });
+            loopTrain();
+        }
+
+        // =========================================
+        // SAMPLE VIZ: Draw from trained model (slide 26)
+        // =========================================
+        const sampleVizSvg = document.getElementById('sampleVizSvg');
+        const btnSampleOne = document.getElementById('btnSampleOne');
+        const btnSampleBurst = document.getElementById('btnSampleBurst');
+        const btnSampleClear = document.getElementById('btnSampleClear');
+        const sampleStatsEl = document.getElementById('sampleStats');
+
+        if (sampleVizSvg) {
+            const SV_N_FLOW_LINES = 99;
+            const SV_INTEGRATE_STEPS = 250;
+            const SV_MAX_PARTICLES = 48;
+            const SV_PARTICLE_SPEED = 130;
+
+            function svX(t) { return fmX(t); }
+
+            const sv = {
+                flowPaths: [],
+                flowLinesDirty: true,
+                lastFlowComputeTrainCount: -1,
+                particles: [],
+                lastFrame: performance.now()
+            };
+            const svdom = {};
+
+            function integratePath(x0) {
+                const pts = [{ t: 0, x: x0 }];
+                let x = x0;
+                let t = 0;
+                const dt = 1 / SV_INTEGRATE_STEPS;
+                for (let i = 0; i < SV_INTEGRATE_STEPS; i++) {
+                    x = gmKernelRegressor.flowStep(t, x, dt);
+                    t += dt;
+                    pts.push({ t, x });
+                }
+                return pts;
+            }
+
+            function pathD(path) {
+                const pts = path.pts;
+                if (!pts.length) return '';
+                const x0 = path.x0;
+                let d = `M ${svX(0).toFixed(1)} ${x0.toFixed(1)}`;
+                for (let i = 1; i < pts.length; i++) {
+                    d += ` L ${svX(pts[i].t).toFixed(1)} ${pts[i].x.toFixed(1)}`;
+                }
+                return d;
+            }
+
+            function computeFlowLines() {
+                sv.flowPaths = [];
+                for (let i = 1; i <= SV_N_FLOW_LINES; i++) {
+                    const x0 = gaussianQuantile(i / 100, PRIOR_CENTER_1.y, PRIOR_SIGMA_1);
+                    sv.flowPaths.push({ x0, pts: integratePath(x0) });
+                }
+                sv.flowLinesDirty = false;
+            }
+
+            function startParticle(x0) {
+                sv.particles.push({ x0, pts: integratePath(x0), idx: 0 });
+                if (sv.particles.length > SV_MAX_PARTICLES) sv.particles.shift();
+            }
+
+            function particlePos(p) {
+                const i = Math.floor(p.idx);
+                const f = p.idx - i;
+                if (i <= 0) {
+                    const pt = p.pts[0];
+                    return { t: f * pt.t, x: p.x0 + f * (pt.x - p.x0) };
+                }
+                if (i >= p.pts.length - 1) return p.pts[p.pts.length - 1];
+                const a = p.pts[i];
+                const b = p.pts[i + 1];
+                return { t: a.t + f * (b.t - a.t), x: a.x + f * (b.x - a.x) };
+            }
+
+            function tickParticles(dt) {
+                for (const p of sv.particles) p.idx += SV_PARTICLE_SPEED * dt;
+                sv.particles = sv.particles.filter(p => p.idx < p.pts.length - 1);
+            }
+
+            function buildSampleSvg() {
+                sampleVizSvg.replaceChildren();
+                svdom.priorHump = svgEl('path', { class: 'viz-prior-hump' });
+                sampleVizSvg.appendChild(svdom.priorHump);
+
+                svdom.priorLabel = svgEl('text', { x: FM_VIZ.X0 + 2, y: 18, 'font-size': 12 });
+                svdom.dataLabel = svgEl('text', { x: FM_VIZ.W - 6, y: 18, 'font-size': 12, 'text-anchor': 'end' });
+                svdom.hintLabel = svgEl('text', { x: FM_VIZ.W / 2, y: 18, 'text-anchor': 'middle', 'font-size': 12 });
+                sampleVizSvg.appendChild(svdom.priorLabel);
+                sampleVizSvg.appendChild(svdom.dataLabel);
+                sampleVizSvg.appendChild(svdom.hintLabel);
+
+                svdom.dataMixtureHump = svgEl('path', { class: 'viz-data-hump' });
+                sampleVizSvg.appendChild(svdom.dataMixtureHump);
+
+                svdom.flowLinesG = svgEl('g', { class: 'sample-flow-lines' });
+                svdom.flowLinePool = [];
+                for (let i = 0; i < SV_N_FLOW_LINES; i++) {
+                    const p = svgEl('path', { fill: 'none', 'stroke-width': 1, visibility: 'hidden' });
+                    svdom.flowLinesG.appendChild(p);
+                    svdom.flowLinePool.push(p);
+                }
+                sampleVizSvg.appendChild(svdom.flowLinesG);
+
+                svdom.particlesG = svgEl('g', { class: 'sample-particles' });
+                svdom.particlePool = [];
+                for (let i = 0; i < SV_MAX_PARTICLES; i++) {
+                    const c = svgEl('circle', { r: 5, fill: '#ce93d8', visibility: 'hidden' });
+                    svdom.particlesG.appendChild(c);
+                    svdom.particlePool.push(c);
+                }
+                sampleVizSvg.appendChild(svdom.particlesG);
+            }
+
+            function addSamplePath() {
+                startParticle(samplePrior1D(PRIOR_CENTER_1.y, PRIOR_SIGMA_1));
+            }
+
+            function renderSampleViz() {
+                const th = getVizTheme();
+                styleFm1DLayout(svdom, th);
+
+                const nTrain = gmKernelRegressor.samples.length;
+                if (nTrain < 5) {
+                    svdom.hintLabel.setAttribute('fill', '#ffb74d');
+                    svdom.hintLabel.textContent = 'Train on previous slide first (▶)';
+                } else {
+                    svdom.hintLabel.setAttribute('fill', th.textMuted);
+                    svdom.hintLabel.textContent = `${nTrain} training examples · ${SV_N_FLOW_LINES} quantile flow lines`;
+                }
+
+                if (nTrain < 5) {
+                    sv.flowPaths = [];
+                    sv.lastFlowComputeTrainCount = nTrain;
+                } else if (
+                    sv.flowLinesDirty ||
+                    sv.lastFlowComputeTrainCount < 0 ||
+                    nTrain - sv.lastFlowComputeTrainCount >= 80
+                ) {
+                    computeFlowLines();
+                    sv.lastFlowComputeTrainCount = nTrain;
+                }
+
+                svdom.flowLinePool.forEach((p, i) => {
+                    if (i < sv.flowPaths.length) {
+                        p.setAttribute('d', pathD(sv.flowPaths[i]));
+                        p.setAttribute('stroke', '#7986cb');
+                        p.setAttribute('stroke-opacity', vizAlpha(0.22, 'trace'));
+                        p.setAttribute('visibility', 'visible');
+                    } else {
+                        p.setAttribute('visibility', 'hidden');
+                    }
+                });
+
+                svdom.particlePool.forEach((c, i) => {
+                    if (i < sv.particles.length) {
+                        const pos = particlePos(sv.particles[i]);
+                        c.setAttribute('cx', svX(pos.t));
+                        c.setAttribute('cy', pos.x);
+                        c.setAttribute('fill-opacity', 0.95);
+                        c.setAttribute('visibility', 'visible');
+                    } else {
+                        c.setAttribute('visibility', 'hidden');
+                    }
+                });
+
+                if (sampleStatsEl) {
+                    sampleStatsEl.textContent = `particles: ${sv.particles.length}  |  training samples: ${nTrain}`;
+                }
+            }
+
+            function loopSample(now) {
+                const dt = Math.min(0.05, (now - sv.lastFrame) / 1000);
+                sv.lastFrame = now;
+                tickParticles(dt);
+                renderSampleViz();
+                requestAnimationFrame(loopSample);
+            }
+
+            buildSampleSvg();
+
+            if (btnSampleOne) btnSampleOne.addEventListener('click', addSamplePath);
+            if (btnSampleBurst) btnSampleBurst.addEventListener('click', () => { for (let i = 0; i < 10; i++) addSamplePath(); });
+            if (btnSampleClear) btnSampleClear.addEventListener('click', () => { sv.particles = []; });
+
+            registerVizRefresh(() => { sv.flowLinesDirty = true; renderSampleViz(); });
+            requestAnimationFrame(loopSample);
         }
 
         bindVizSettingsUI();
