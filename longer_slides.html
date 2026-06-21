@@ -425,6 +425,11 @@
             color: #1a1a2e;
         }
 
+        .controls .diff-vp-mode-btn.active {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #29b6f6 100%);
+            color: #1a1a2e;
+        }
+
         input[type=range] {
             vertical-align: middle;
             accent-color: var(--primary-color);
@@ -1454,7 +1459,7 @@
         <!-- SLIDE 28: Different State Spaces -->
         <div class="slide" data-slide="28">
             <div class="slide-content">
-                <h2>7. Different State Spaces</h2>
+                <h2>7. What Gets Averaged?</h2>
                 <p style="font-size: 1.15rem; margin-bottom: 1rem;">The "smooth average" works for any stochastic process. What gets averaged depends on the step type:</p>
 
                 <div class="two-col">
@@ -1740,8 +1745,59 @@
             </div>
         </div>
 
-        <!-- SLIDE 38: Diffusion as a special case -->
+        <!-- SLIDE 38: Transition consistency -->
         <div class="slide" data-slide="38">
+            <div class="slide-content">
+                <h2>Transition Consistency</h2>
+
+                <p style="font-size: 1.1rem; margin-bottom: 1rem;">
+                    A legitimate stochastic process must <strong>compose</strong>: the law of $x_t$ given $x_s$ must not depend on whether you jump directly from $s$ to $t$ or pause at an intermediate time $u$.
+                </p>
+
+                <div class="equation" style="font-size: 1.15rem; margin: 0.75rem 0;">
+                    $$p(x_t \mid x_s) = \int p(x_t \mid x_u)\, p(x_u \mid x_s)\, dx_u,
+                    \qquad s < u < t$$
+                </div>
+
+                <p style="font-size: 1rem; margin-bottom: 1rem;">
+                    This is the <strong>Chapman–Kolmogorov</strong> (semigroup) property. One-step and multi-step simulation agree; closed-form marginals $p(x_t \mid x_s)$ are only trustworthy when the underlying transitions satisfy it.
+                </p>
+
+                <div class="two-col">
+                    <div>
+                        <h3>SDE example</h3>
+                        <p style="font-size: 0.95rem; margin-bottom: 0.5rem;">
+                            For $dX_t = b(t,X_t)\,dt + \sigma(t,X_t)\,dW_t$, write $K_{s,t}(x_s,\cdot) = p(x_t \mid x_s)$.
+                            Two small steps of size $\Delta t/2$ must match one step of size $\Delta t$:
+                        </p>
+                        <div class="equation" style="font-size: 1rem; margin: 0.5rem 0;">
+                            $$K_{t,\,t+\Delta t} = K_{t+\Delta t/2,\,t+\Delta t} \circ K_{t,\,t+\Delta t/2}$$
+                        </div>
+                        <p style="font-size: 0.95rem;">
+                            <strong>Brownian motion:</strong> $X_t - X_s \sim \mathcal{N}(0, (t-s)I)$ with independent increments, so
+                            $(X_u - X_s) + (X_t - X_u) = X_t - X_s$ and variances add: $(u-s) + (t-u) = t-s$.
+                        </p>
+                    </div>
+                    <div>
+                        <h3>Discrete example</h3>
+                        <p style="font-size: 0.95rem; margin-bottom: 0.5rem;">
+                            Random walk on $\mathbb{Z}$: each step $\pm 1$ with equal probability.
+                            One step over $2\Delta t$ is the same as two consecutive steps over $\Delta t$:
+                        </p>
+                        <div class="equation" style="font-size: 1rem; margin: 0.5rem 0;">
+                            $$P_{ij}^{(2)} = \sum_k P_{ik}\, P_{kj}$$
+                        </div>
+                        <p style="font-size: 0.95rem;">
+                            More generally, a CTMC with generator $Q$ has transition matrix $P(\Delta t) = e^{Q\Delta t}$, and
+                            $P(\Delta t_1 + \Delta t_2) = P(\Delta t_1)\, P(\Delta t_2)$ — two short waits equal one long wait.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 39: Diffusion as a special case -->
+        <div class="slide" data-slide="39">
             <div class="slide-content">
                 <h2>But diffusion seemed different…</h2>
                 <p style="font-size: 1rem; margin-bottom: 0.5rem;">
@@ -1763,8 +1819,8 @@
                     <svg id="diffVpSvg" class="viz-svg viz-svg--fm" viewBox="0 0 720 480" role="img" aria-label="VP diffusion as noise-data interpolation"></svg>
                     <div class="controls" style="margin-top: 0.5rem; padding: 8px; flex-wrap: wrap; gap: 10px; align-items: center;">
                         <button type="button" id="btnDiffResample" class="secondary">Resample paths</button>
-                        <button type="button" id="diffVpFlowView" class="secondary sim-mode-btn">Flow view</button>
-                        <button type="button" id="diffVpDiffView" class="secondary sim-mode-btn">Diffusion view</button>
+                        <button type="button" id="diffVpFlowView" class="secondary diff-vp-mode-btn">Flow view</button>
+                        <button type="button" id="diffVpDiffView" class="secondary diff-vp-mode-btn">Diffusion view</button>
                         <span id="diffVpStats" style="font-size: 0.85rem; color: #888; margin-left: auto;">5 VP paths</span>
                     </div>
                     <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
@@ -1776,8 +1832,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 39: To Do / Future -->
-        <div class="slide" data-slide="39">
+        <!-- SLIDE 40: To Do / Future -->
+        <div class="slide" data-slide="40">
             <div class="slide-content">
                 <h2>Coming Soon...</h2>
                 
@@ -1899,6 +1955,7 @@
             if (vizWrap) vizWrap.style.display = currentSlideIndex === 0 ? '' : 'none';
 
             updateSlideListActive();
+            if (window.SlideAnim) window.SlideAnim.sync(currentSlideIndex);
         }
 
         function changeSlide(dir) {
@@ -1934,6 +1991,58 @@
         }
         if (slideListClose) slideListClose.addEventListener('click', () => setSlideListOpen(false));
         if (slideListBackdrop) slideListBackdrop.addEventListener('click', () => setSlideListOpen(false));
+
+        window.SlideAnim = (() => {
+            const entries = [];
+
+            function register(slideIndices, loop) {
+                const slides = Array.isArray(slideIndices) ? slideIndices : [slideIndices];
+                entries.push({ slides: new Set(slides), loop, engaged: false });
+            }
+
+            function sync(slideIdx) {
+                for (const e of entries) {
+                    const want = e.slides.has(slideIdx);
+                    if (want && !e.engaged) {
+                        e.engaged = true;
+                        e.loop.start();
+                    } else if (!want && e.engaged) {
+                        e.engaged = false;
+                        e.loop.stop();
+                    }
+                }
+            }
+
+            return { register, sync };
+        })();
+
+        window.slideIndexOf = function slideIndexOf(el) {
+            if (!el) return -1;
+            const slide = el.closest('.slide');
+            if (!slide) return -1;
+            return Array.from(document.querySelectorAll('.slide')).indexOf(slide);
+        };
+
+        window.makeSlideRafLoop = function makeSlideRafLoop(tickFn, { onStart } = {}) {
+            let rafId = null;
+            return {
+                start() {
+                    if (rafId != null) return;
+                    onStart?.();
+                    const frame = (now) => {
+                        tickFn(now);
+                        rafId = requestAnimationFrame(frame);
+                    };
+                    rafId = requestAnimationFrame(frame);
+                },
+                stop() {
+                    if (rafId != null) {
+                        cancelAnimationFrame(rafId);
+                        rafId = null;
+                    }
+                }
+            };
+        };
 
         // Initialize
         showSlide(0);
@@ -2752,7 +2861,6 @@
 
         function loopV1() {
             drawV1();
-            requestAnimationFrame(loopV1);
         }
 
         function drawV1() {
@@ -2807,7 +2915,7 @@
         buildV1Svg();
         initV1Data();
         registerVizRefresh(drawV1);
-        loopV1();
+        SlideAnim.register(slideIndexOf(posteriorSvg), makeSlideRafLoop(loopV1));
 
 
         // =========================================
@@ -2817,7 +2925,7 @@
         const btnResetSim = document.getElementById('btnResetSim');
         const btnRandomizeSim = document.getElementById('btnRandomizeSim');
         const btnAutoPlay = document.getElementById('btnAutoPlay');
-        const simModeBtns = document.querySelectorAll('.sim-mode-btn');
+        const simModeBtns = document.querySelectorAll('.sim-controls .sim-mode-btn');
         const SIM_W = 800, SIM_H = 400;
         const dt = 1 / 1000;
         const SIM_MODES = [
@@ -3121,16 +3229,19 @@
             drawAutoStageOverlay();
         }
 
+        let simDisplayAllowed = false;
+
         function loopSimDisplay() {
             drawSim();
-            requestAnimationFrame(loopSimDisplay);
         }
 
         function simLoop() {
+            if (!simDisplayAllowed) return;
             updateSimState();
             if(sim.running || sim.t < 1.0) {
                 sim.animId = requestAnimationFrame(simLoop);
             } else {
+                sim.animId = null;
                 if (sim.autoPlayActive) {
                     if (sim.autoStageIndex < SIM_MODES.length - 1) {
                         sim.autoStageIndex++;
@@ -3140,6 +3251,12 @@
                         btnAutoPlay.textContent = '▶';
                     }
                 }
+            }
+        }
+
+        function resumeSimLoopIfNeeded() {
+            if (simDisplayAllowed && (sim.running || sim.t < 1.0) && sim.animId == null) {
+                simLoop();
             }
         }
 
@@ -3215,7 +3332,24 @@
         applySimMode(0, { start: false });
         buildParticlesFromSeeds();
         registerVizRefresh(drawSim);
-        loopSimDisplay();
+        SlideAnim.register(slideIndexOf(simSvg), (() => {
+            const displayLoop = makeSlideRafLoop(loopSimDisplay);
+            return {
+                start() {
+                    simDisplayAllowed = true;
+                    displayLoop.start();
+                    resumeSimLoopIfNeeded();
+                },
+                stop() {
+                    simDisplayAllowed = false;
+                    displayLoop.stop();
+                    if (sim.animId != null) {
+                        cancelAnimationFrame(sim.animId);
+                        sim.animId = null;
+                    }
+                }
+            };
+        })());
 
     </script>
 
@@ -3313,7 +3447,6 @@
 
         function loopV3() {
             drawV3();
-            requestAnimationFrame(loopV3);
         }
 
         function drawV3() {
@@ -3374,7 +3507,7 @@
         buildV3Svg();
         initV3Data();
         registerVizRefresh(drawV3);
-        loopV3();
+        SlideAnim.register(slideIndexOf(posteriorSvg3), makeSlideRafLoop(loopV3));
 
         // =========================================
         // MOUSE GROWTH MODEL (shared)
@@ -3713,12 +3846,11 @@
 
             function loopStaticMouse() {
                 drawStaticMouse();
-                requestAnimationFrame(loopStaticMouse);
             }
 
             buildMouseStaticSvg();
             registerVizRefresh(drawStaticMouse);
-            loopStaticMouse();
+            SlideAnim.register(slideIndexOf(mouseStaticSvg), makeSlideRafLoop(loopStaticMouse));
         }
 
         // =========================================
@@ -4211,12 +4343,11 @@
 
             function loopAI() {
                 drawAIDiscrete();
-                requestAnimationFrame(loopAI);
             }
 
             buildAIDiscreteSvg();
             registerVizRefresh(drawAIDiscrete);
-            loopAI();
+            SlideAnim.register(slideIndexOf(aiDiscreteSvg), makeSlideRafLoop(loopAI));
         }
 
         // =========================================
@@ -4512,7 +4643,6 @@
             function loopMarginal() {
                 updateMarginalState();
                 renderMarginalSvg();
-                requestAnimationFrame(loopMarginal);
             }
 
             buildMarginalSvg();
@@ -4532,7 +4662,7 @@
                 });
             }
             registerVizRefresh(renderMarginalSvg);
-            loopMarginal();
+            SlideAnim.register(slideIndexOf(marginalSvg), makeSlideRafLoop(loopMarginal));
         }
 
         // =========================================
@@ -4879,7 +5009,6 @@
                     for (let i = 0; i < n; i++) avgSgdStep();
                 }
                 renderAvgLearn();
-                requestAnimationFrame(tickAvgLearn);
             }
 
             buildAvgLearnSvg();
@@ -4913,7 +5042,9 @@
             }
 
             registerVizRefresh(renderAvgLearn);
-            requestAnimationFrame(tickAvgLearn);
+            SlideAnim.register(slideIndexOf(avgLearnSvg), makeSlideRafLoop(tickAvgLearn, {
+                onStart: () => { al.lastFrame = performance.now(); }
+            }));
         }
 
         // =========================================
@@ -5353,7 +5484,6 @@
                 } else if (tr.showField && tr.running) {
                     renderVectorField();
                 }
-                requestAnimationFrame(loopTrain);
             }
 
             buildTrainSvg();
@@ -5398,7 +5528,10 @@
             }
 
             registerVizRefresh(() => { renderTrainViz(); renderLossPlot(); });
-            loopTrain();
+            SlideAnim.register(
+                [slideIndexOf(trainVizSvg), slideIndexOf(document.getElementById('sampleVizSvg'))],
+                makeSlideRafLoop(loopTrain, { onStart: () => { tr.lastFrame = performance.now(); } })
+            );
         }
 
         // =========================================
@@ -5579,7 +5712,6 @@
                 sv.lastFrame = now;
                 tickParticles(dt);
                 renderSampleViz();
-                requestAnimationFrame(loopSample);
             }
 
             buildSampleSvg();
@@ -5589,11 +5721,13 @@
             if (btnSampleClear) btnSampleClear.addEventListener('click', () => { sv.particles = []; });
 
             registerVizRefresh(() => { sv.flowLinesDirty = true; renderSampleViz(); });
-            requestAnimationFrame(loopSample);
+            SlideAnim.register([slideIndexOf(trainVizSvg), slideIndexOf(sampleVizSvg)], makeSlideRafLoop(loopSample, {
+                onStart: () => { sv.lastFrame = performance.now(); }
+            }));
         }
 
         // =========================================
-        // VP DIFFUSION BRIDGE VIZ (slide 38)
+        // VP DIFFUSION BRIDGE VIZ (slide 39)
         // =========================================
         const diffVpSvg = document.getElementById('diffVpSvg');
         const btnDiffResample = document.getElementById('btnDiffResample');
@@ -5953,7 +6087,6 @@
                     }
                 }
                 renderDiffVp();
-                requestAnimationFrame(tickVpAnim);
             }
 
             function setVpViewMode(mode) {
@@ -5996,11 +6129,13 @@
             }
 
             registerVizRefresh(renderDiffVp);
-            vp.lastFrame = performance.now();
-            requestAnimationFrame(tickVpAnim);
+            SlideAnim.register(slideIndexOf(diffVpSvg), makeSlideRafLoop(tickVpAnim, {
+                onStart: () => { vp.lastFrame = performance.now(); }
+            }));
         }
 
         bindVizSettingsUI();
+        SlideAnim.sync(slideIndexOf(document.querySelector('.slide.active')));
     </script>
     
 </body>
