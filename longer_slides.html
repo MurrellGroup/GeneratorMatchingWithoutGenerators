@@ -1019,8 +1019,22 @@
             </div>
         </div>
 
-        <!-- SLIDE 20: Infinite Switching Limit -->
+        <!-- SLIDE 20: Marginal KDE Comparison -->
         <div class="slide" data-slide="20">
+            <div class="slide-content">
+                <h2>Same Marginal $p(x_t \mid t)$ for All Three Processes</h2>
+                <p style="font-size: 1rem; margin-bottom: 0.4rem;">500 particles with identical starts — KDE isolines of the current cloud at each $t$.</p>
+                <div class="interactive-figure" style="padding: 0.75rem 1rem; margin-top: 0;">
+                    <canvas id="marginalKdeCanvas" width="800" height="468"></canvas>
+                    <div class="caption" style="margin-top: 0.4rem; font-size: 0.85rem;">
+                        Conditional &nbsp;|&nbsp; Resampled ($\Delta t = 0.01$) &nbsp;|&nbsp; Posterior averaged — contours should align at every $t$
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 21: Infinite Switching Limit -->
+        <div class="slide" data-slide="21">
             <div class="slide-content">
                 <h2>5. The Infinite Switching Limit</h2>
                 
@@ -1046,8 +1060,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 21: Interactive Averaged Velocity -->
-        <div class="slide" data-slide="21">
+        <!-- SLIDE 22: Interactive Averaged Velocity -->
+        <div class="slide" data-slide="22">
             <div class="slide-content">
                 <h2>Interactive: Posterior-Averaged Velocity</h2>
                 <div class="interactive-figure">
@@ -1070,8 +1084,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 22: Training
-        <div class="slide" data-slide="22">
+        <!-- SLIDE 23: Training
+        <div class="slide" data-slide="23">
             <div class="slide-content">
                 <h2>6. Training</h2>
                 <p style="font-size: 1.2rem; margin-bottom: 1rem;">We need a model $f_\theta(t, x)$ that outputs $\bar{u}_t(x_t)$. This is just <strong>regression!</strong></p>
@@ -1097,8 +1111,8 @@
         </div>
          -->
 
-        <!-- SLIDE 23: Training Algorithm -->
-        <div class="slide" data-slide="23">
+        <!-- SLIDE 24: Training Algorithm -->
+        <div class="slide" data-slide="24">
             <div class="slide-content">
                 <h2>6. Training</h2>
                 <p style="font-size: 1.2rem; margin-bottom: 1rem;">We need a model $f_\theta(t, x)$ that outputs $\bar{u}_t(x_t)$. This is just <strong>regression!</strong></p>
@@ -1128,8 +1142,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 24: Different State Spaces -->
-        <div class="slide" data-slide="24">
+        <!-- SLIDE 25: Different State Spaces -->
+        <div class="slide" data-slide="25">
             <div class="slide-content">
                 <h2>7. Different State Spaces</h2>
                 <p style="font-size: 1.15rem; margin-bottom: 1rem;">The "smooth average" works for any stochastic process. What gets averaged depends on the step type:</p>
@@ -1171,8 +1185,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 25: Case I - Drift Only -->
-        <div class="slide" data-slide="25">
+        <!-- SLIDE 26: Case I - Drift Only -->
+        <div class="slide" data-slide="26">
             <div class="slide-content">
                 <h2>Case I: Deterministic Flow (Pure Drift)</h2>
                 
@@ -1193,8 +1207,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 26: Case II - Drift + Diffusion -->
-        <div class="slide" data-slide="26">
+        <!-- SLIDE 27: Case II - Drift + Diffusion -->
+        <div class="slide" data-slide="27">
             <div class="slide-content">
                 <h2>Case II: Diffusion (Drift + Gaussian Noise)</h2>
                 
@@ -1215,8 +1229,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 27: Case III - Discrete -->
-        <div class="slide" data-slide="27">
+        <!-- SLIDE 28: Case III - Discrete -->
+        <div class="slide" data-slide="28">
             <div class="slide-content">
                 <h2>Case III: Discrete States (CTMC)</h2>
                 
@@ -1240,8 +1254,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 28: Case IV - Jumps -->
-        <div class="slide" data-slide="28">
+        <!-- SLIDE 29: Case IV - Jumps -->
+        <div class="slide" data-slide="29">
             <div class="slide-content">
                 <h2>Case IV: Jump Processes in Continuous Space</h2>
                 
@@ -1265,8 +1279,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 29: Closure -->
-        <div class="slide" data-slide="29">
+        <!-- SLIDE 30: Closure -->
+        <div class="slide" data-slide="30">
             <div class="slide-content">
                 <h2>Closure Property</h2>
                 
@@ -1289,8 +1303,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 30: Sampling -->
-        <div class="slide" data-slide="30">
+        <!-- SLIDE 31: Sampling -->
+        <div class="slide" data-slide="31">
             <div class="slide-content">
                 <h2>8. Sampling from a Trained Model</h2>
                 
@@ -1315,8 +1329,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 31: Complete Recipe -->
-        <div class="slide" data-slide="31">
+        <!-- SLIDE 32: Complete Recipe -->
+        <div class="slide" data-slide="32">
             <div class="slide-content">
                 <h2>9. The Complete GM Recipe</h2>
 
@@ -1355,8 +1369,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 32: Parameterizations -->
-        <div class="slide" data-slide="32">
+        <!-- SLIDE 33: Parameterizations -->
+        <div class="slide" data-slide="33">
             <div class="slide-content">
                 <h2>Linear Parameterizations</h2>
                 
@@ -1391,8 +1405,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 33: Efficient Sampling -->
-        <div class="slide" data-slide="33">
+        <!-- SLIDE 34: Efficient Sampling -->
+        <div class="slide" data-slide="34">
             <div class="slide-content">
                 <h2>Efficient Conditional Sampling</h2>
                 
@@ -1417,8 +1431,8 @@
             </div>
         </div>
 
-        <!-- SLIDE 34: To Do / Future -->
-        <div class="slide" data-slide="34">
+        <!-- SLIDE 35: To Do / Future -->
+        <div class="slide" data-slide="35">
             <div class="slide-content">
                 <h2>Coming Soon...</h2>
                 
@@ -1683,6 +1697,151 @@
 
             // 3. Normalize
             return expWeights.map(w => w / sumExp);
+        }
+
+        function advanceParticle2D(p, mode, resampleInterval, t, dt, targets, center, sigma, onResample) {
+            const denom = Math.max(1 - t, 0.02);
+            const weights = getPosteriorWeights(p, targets, t, center, sigma);
+            if (mode === 'average') {
+                let vx = 0, vy = 0;
+                targets.forEach((z, i) => {
+                    vx += weights[i] * (z.x - p.x);
+                    vy += weights[i] * (z.y - p.y);
+                });
+                p.x += (vx / denom) * dt;
+                p.y += (vy / denom) * dt;
+            } else {
+                p.timer--;
+                if (p.timer <= 0 || !p.currentZ) {
+                    p.timer = resampleInterval;
+                    const oldZ = p.currentZ;
+                    let r = Math.random();
+                    let cum = 0;
+                    let chosen = targets[targets.length - 1];
+                    for (let i = 0; i < weights.length; i++) {
+                        cum += weights[i];
+                        if (r <= cum) {
+                            chosen = targets[i];
+                            break;
+                        }
+                    }
+                    p.currentZ = chosen;
+                    if (onResample && p.currentZ !== oldZ) onResample();
+                }
+                p.x += ((p.currentZ.x - p.x) / denom) * dt;
+                p.y += ((p.currentZ.y - p.y) / denom) * dt;
+            }
+        }
+
+        function samplePriorSeeds2D(n) {
+            const seeds = [];
+            for (let i = 0; i < n; i++) {
+                const u = 1 - Math.random();
+                const v = Math.random();
+                const z1 = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+                const u2 = 1 - Math.random();
+                const v2 = Math.random();
+                const z2 = Math.sqrt(-2.0 * Math.log(u2)) * Math.cos(2.0 * Math.PI * v2);
+                seeds.push({
+                    x: PRIOR_CENTER_2.x + z1 * PRIOR_SIGMA_2,
+                    y: PRIOR_CENTER_2.y + z2 * PRIOR_SIGMA_2
+                });
+            }
+            return seeds;
+        }
+
+        function buildKdeGrid(particles, nx, ny, bounds, bandwidth) {
+            const { xMin, xMax, yMin, yMax } = bounds;
+            const grid = new Float64Array(nx * ny);
+            const wx = (xMax - xMin) / (nx - 1);
+            const wy = (yMax - yMin) / (ny - 1);
+            const cell = Math.min(wx, wy);
+            const radius = Math.ceil(3 * bandwidth / cell);
+            const inv2h2 = 1 / (2 * bandwidth * bandwidth);
+            const r2max = 9 * bandwidth * bandwidth;
+
+            for (const p of particles) {
+                const gi = (p.x - xMin) / wx;
+                const gj = (p.y - yMin) / wy;
+                const i0 = Math.max(0, Math.floor(gi) - radius);
+                const i1 = Math.min(nx - 1, Math.floor(gi) + radius);
+                const j0 = Math.max(0, Math.floor(gj) - radius);
+                const j1 = Math.min(ny - 1, Math.floor(gj) + radius);
+                for (let j = j0; j <= j1; j++) {
+                    for (let i = i0; i <= i1; i++) {
+                        const dx = (i - gi) * wx;
+                        const dy = (j - gj) * wy;
+                        const d2 = dx * dx + dy * dy;
+                        if (d2 <= r2max) grid[j * nx + i] += Math.exp(-d2 * inv2h2);
+                    }
+                }
+            }
+            return grid;
+        }
+
+        const MS_SEGMENTS = [
+            [], [[0, 3]], [[1, 0]], [[1, 3]], [[2, 1]], [[0, 3], [1, 2]], [[0, 1]], [[1, 2]],
+            [[2, 3]], [[0, 2]], [[0, 1], [2, 3]], [[0, 2], [1, 3]], [[1, 2]], [[0, 3]], [[1, 0]], []
+        ];
+
+        function msEdgePoint(edge, v00, v10, v11, v01, level, x, y, dx, dy) {
+            const t01 = (a, b) => {
+                const d = b - a;
+                return Math.abs(d) < 1e-12 ? 0.5 : (level - a) / d;
+            };
+            if (edge === 0) return [x + t01(v00, v10) * dx, y];
+            if (edge === 1) return [x + dx, y + t01(v10, v11) * dy];
+            if (edge === 2) return [x + t01(v01, v11) * dx, y + dy];
+            return [x, y + t01(v00, v01) * dy];
+        }
+
+        function drawKdeContours(ctx, grid, nx, ny, bounds, panel, levels, colorFn) {
+            const { xMin, xMax, yMin, yMax } = bounds;
+            const dx = (xMax - xMin) / (nx - 1);
+            const dy = (yMax - yMin) / (ny - 1);
+            let maxV = 0;
+            for (let k = 0; k < grid.length; k++) if (grid[k] > maxV) maxV = grid[k];
+            if (maxV <= 1e-12) return;
+
+            const toScreen = (wx, wy) => ({
+                x: panel.left + (wx - xMin) / (xMax - xMin) * panel.width,
+                y: panel.top + (wy - yMin) / (yMax - yMin) * panel.height
+            });
+
+            for (let li = 0; li < levels.length; li++) {
+                const level = maxV * levels[li];
+                ctx.beginPath();
+                for (let j = 0; j < ny - 1; j++) {
+                    for (let i = 0; i < nx - 1; i++) {
+                        const v00 = grid[j * nx + i];
+                        const v10 = grid[j * nx + i + 1];
+                        const v11 = grid[(j + 1) * nx + i + 1];
+                        const v01 = grid[(j + 1) * nx + i];
+                        let idx = 0;
+                        if (v00 >= level) idx |= 1;
+                        if (v10 >= level) idx |= 2;
+                        if (v11 >= level) idx |= 4;
+                        if (v01 >= level) idx |= 8;
+                        const segs = MS_SEGMENTS[idx];
+                        if (!segs.length) continue;
+                        const x = xMin + i * dx;
+                        const y = yMin + j * dy;
+                        for (let s = 0; s < segs.length; s += 2) {
+                            const p1 = msEdgePoint(segs[s], v00, v10, v11, v01, level, x, y, dx, dy);
+                            const p2 = msEdgePoint(segs[s + 1], v00, v10, v11, v01, level, x, y, dx, dy);
+                            const a = toScreen(p1[0], p1[1]);
+                            const b = toScreen(p2[0], p2[1]);
+                            ctx.moveTo(a.x, a.y);
+                            ctx.lineTo(b.x, b.y);
+                        }
+                    }
+                }
+                ctx.strokeStyle = colorFn(li, levels.length);
+                ctx.lineWidth = li === levels.length - 1 ? 1.5 : 1;
+                ctx.globalAlpha = vizAlpha(0.3 + 0.18 * li, 'hump');
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+            }
         }
 
         // =========================================
@@ -2079,55 +2238,16 @@
             }
 
             const t = sim.t;
-            const denom = Math.max(1 - t, 0.02); 
 
             sim.particles.forEach(p => {
-                // Save Trail
                 if (Math.floor(t * 400) % 3 === 0) {
                     p.history.push({x: p.x, y: p.y});
                 }
-
-                const weights = getPosteriorWeights(p, simTargets, t, PRIOR_CENTER_2, PRIOR_SIGMA_2);
-
-                if (sim.mode === 'average') {
-                    // Weighted Average Step
-                    let vx = 0, vy = 0;
-                    simTargets.forEach((z, i) => {
-                        vx += weights[i] * (z.x - p.x);
-                        vy += weights[i] * (z.y - p.y);
-                    });
-                    // dx = u_t * dt = (AverageVec / (1-t)) * dt
-                    p.x += (vx / denom) * dt;
-                    p.y += (vy / denom) * dt;
-                
-                } else {
-                    // Resample Step
-                    p.timer--;
-                    if (p.timer <= 0 || !p.currentZ) {
-                        p.timer = sim.resampleInterval;
-                        // Sample Z
-                        let r = Math.random();
-                        let cum = 0;
-                        const oldZ = p.currentZ;
-                        let chosen = simTargets[simTargets.length - 1];
-                        for(let i=0; i<weights.length; i++){
-                            cum += weights[i];
-                            if(r <= cum) {
-                                chosen = simTargets[i];
-                                break;
-                            }
-                        }
-                        p.currentZ = chosen;
-                        if (p.id === 0 && p.currentZ !== oldZ) {
-                            playClick();
-                        }
-                    }
-                    // Step towards chosen Z
-                    const vx = p.currentZ.x - p.x;
-                    const vy = p.currentZ.y - p.y;
-                    p.x += (vx / denom) * dt;
-                    p.y += (vy / denom) * dt;
-                }
+                advanceParticle2D(
+                    p, sim.mode, sim.resampleInterval, t, dt,
+                    simTargets, PRIOR_CENTER_2, PRIOR_SIGMA_2,
+                    p.id === 0 ? playClick : null
+                );
             });
         }
 
@@ -3166,6 +3286,154 @@
                 requestAnimationFrame(loopAI);
             }
             loopAI();
+        }
+
+        // =========================================
+        // MARGINAL KDE: THREE-STACK COMPARISON (slide 20)
+        // =========================================
+        const cvsMarg = document.getElementById('marginalKdeCanvas');
+        if (cvsMarg) {
+            const ctxMarg = cvsMarg.getContext('2d');
+            const margDt = 1 / 1000;
+            const MARG_BOUNDS = { xMin: 35, xMax: 785, yMin: 30, yMax: 370 };
+            const MARG_BW = 24;
+            const MARG_NX = 52;
+            const MARG_NY = 28;
+            const MARG_LEVELS = [0.22, 0.42, 0.62, 0.82];
+            const MARG_PANELS = [
+                { label: 'Conditional', mode: 'resample', interval: 1000 },
+                { label: '0.01', mode: 'resample', interval: 10 },
+                { label: 'Smooth', mode: 'average' }
+            ];
+            const MARG_LAYOUT = { plotLeft: 86, plotRight: 788, firstTop: 28, panelH: 132, gap: 10 };
+
+            function margPanelRect(i) {
+                const top = MARG_LAYOUT.firstTop + i * (MARG_LAYOUT.panelH + MARG_LAYOUT.gap);
+                return {
+                    left: MARG_LAYOUT.plotLeft,
+                    top,
+                    width: MARG_LAYOUT.plotRight - MARG_LAYOUT.plotLeft,
+                    height: MARG_LAYOUT.panelH,
+                    bottom: top + MARG_LAYOUT.panelH
+                };
+            }
+
+            function initMargParticlesFromSeeds(seeds) {
+                return MARG_PANELS.map(cfg => seeds.map((seed, id) => ({
+                    id,
+                    x: seed.x,
+                    y: seed.y,
+                    currentZ: null,
+                    timer: 0
+                })));
+            }
+
+            const marg = {
+                t: 0,
+                running: true,
+                seeds: samplePriorSeeds2D(500),
+                panelParticles: null,
+                kdeGrids: MARG_PANELS.map(() => new Float64Array(MARG_NX * MARG_NY))
+            };
+            marg.panelParticles = initMargParticlesFromSeeds(marg.seeds);
+
+            function resetMarginalRun() {
+                marg.t = 0;
+                marg.running = true;
+                marg.panelParticles = initMargParticlesFromSeeds(marg.seeds);
+            }
+
+            function updateMarginalState() {
+                if (!marg.running) return;
+                marg.t = Math.min(1, marg.t + margDt);
+                const t = marg.t;
+                MARG_PANELS.forEach((cfg, pi) => {
+                    const particles = marg.panelParticles[pi];
+                    if (t < 1.0) {
+                        for (const p of particles) {
+                            advanceParticle2D(
+                                p, cfg.mode, cfg.interval, t, margDt,
+                                simTargets, PRIOR_CENTER_2, PRIOR_SIGMA_2
+                            );
+                        }
+                    }
+                    marg.kdeGrids[pi] = buildKdeGrid(particles, MARG_NX, MARG_NY, MARG_BOUNDS, MARG_BW);
+                });
+                if (marg.t >= 1.0) marg.running = false;
+            }
+
+            function drawMarginalKde() {
+                vizClearCanvas(ctxMarg, cvsMarg);
+                const th = getVizTheme();
+                const contourBase = VizSettings.bgMode === 'light' ? '#1565c0' : '#4fc3f7';
+
+                ctxMarg.fillStyle = th.textBright;
+                ctxMarg.font = '12px -apple-system, system-ui, sans-serif';
+                ctxMarg.fillText(`t = ${marg.t.toFixed(2)}`, cvsMarg.width / 2 - 22, 16);
+
+                MARG_PANELS.forEach((cfg, pi) => {
+                    const panel = margPanelRect(pi);
+                    const particles = marg.panelParticles[pi];
+
+                    ctxMarg.fillStyle = th.text;
+                    ctxMarg.font = '11px -apple-system, system-ui, sans-serif';
+                    ctxMarg.fillText(cfg.label, 8, panel.top + panel.height / 2 + 4);
+
+                    ctxMarg.strokeStyle = th.axis;
+                    ctxMarg.lineWidth = 1;
+                    ctxMarg.strokeRect(panel.left, panel.top, panel.width, panel.height);
+
+                    if (pi === 0) {
+                        ctxMarg.fillStyle = th.textMuted;
+                        ctxMarg.font = '10px -apple-system, system-ui, sans-serif';
+                        ctxMarg.fillText('Prior (t=0)', panel.left, panel.top - 4);
+                        ctxMarg.fillText('Data (t=1)', panel.left + panel.width - 44, panel.top - 4);
+                    }
+
+                    simTargets.forEach(z => {
+                        const sx = panel.left + (z.x - MARG_BOUNDS.xMin) / (MARG_BOUNDS.xMax - MARG_BOUNDS.xMin) * panel.width;
+                        const sy = panel.top + (z.y - MARG_BOUNDS.yMin) / (MARG_BOUNDS.yMax - MARG_BOUNDS.yMin) * panel.height;
+                        ctxMarg.beginPath();
+                        ctxMarg.arc(sx, sy, 2, 0, Math.PI * 2);
+                        ctxMarg.fillStyle = `rgba(79, 195, 247, ${vizAlpha(0.2, 'hump')})`;
+                        ctxMarg.fill();
+                    });
+
+                    drawKdeContours(
+                        ctxMarg, marg.kdeGrids[pi], MARG_NX, MARG_NY,
+                        MARG_BOUNDS, panel, MARG_LEVELS,
+                        () => contourBase
+                    );
+
+                    ctxMarg.fillStyle = th.textMuted;
+                    ctxMarg.globalAlpha = vizAlpha(0.35, 'trace');
+                    for (const p of particles) {
+                        const sx = panel.left + (p.x - MARG_BOUNDS.xMin) / (MARG_BOUNDS.xMax - MARG_BOUNDS.xMin) * panel.width;
+                        const sy = panel.top + (p.y - MARG_BOUNDS.yMin) / (MARG_BOUNDS.yMax - MARG_BOUNDS.yMin) * panel.height;
+                        ctxMarg.fillRect(sx, sy, 1, 1);
+                    }
+                    ctxMarg.globalAlpha = 1;
+                });
+
+                if (!marg.running && marg.t >= 1.0) {
+                    ctxMarg.fillStyle = th.textMuted;
+                    ctxMarg.font = '11px -apple-system, system-ui, sans-serif';
+                    ctxMarg.fillText('(click canvas to replay)', cvsMarg.width / 2 - 58, cvsMarg.height - 6);
+                }
+            }
+
+            function loopMarginal() {
+                updateMarginalState();
+                drawMarginalKde();
+                requestAnimationFrame(loopMarginal);
+            }
+
+            cvsMarg.addEventListener('click', resetMarginalRun);
+            MARG_PANELS.forEach((cfg, pi) => {
+                marg.kdeGrids[pi] = buildKdeGrid(marg.panelParticles[pi], MARG_NX, MARG_NY, MARG_BOUNDS, MARG_BW);
+            });
+            registerVizRefresh(drawMarginalKde);
+            loopMarginal();
         }
 
         bindVizSettingsUI();
