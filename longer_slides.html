@@ -576,12 +576,161 @@
             padding: 2px 6px;
             font-family: inherit;
         }
+
+        /* Slide list sidebar */
+        .slide-list-toggle {
+            position: fixed;
+            top: 14px;
+            left: 14px;
+            z-index: 1002;
+            padding: 8px 14px;
+            font-family: "Space Grotesk", -apple-system, sans-serif;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: var(--nav-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-color);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .slide-list-toggle:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+
+        .slide-list-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.25);
+            z-index: 1003;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+
+        body.slide-list-open .slide-list-backdrop {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .slide-list-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: min(320px, 88vw);
+            z-index: 1004;
+            background: var(--slide-bg);
+            border-right: 1px solid var(--border-color);
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+            display: flex;
+            flex-direction: column;
+            transform: translateX(-100%);
+            transition: transform 0.25s ease;
+        }
+
+        body.slide-list-open .slide-list-panel {
+            transform: translateX(0);
+        }
+
+        .slide-list-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 14px 12px;
+            border-bottom: 1px solid var(--border-color);
+            font-family: "Space Grotesk", -apple-system, sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--primary-color);
+            flex-shrink: 0;
+        }
+
+        .slide-list-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            line-height: 1;
+            color: #888;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+
+        .slide-list-close:hover {
+            color: var(--text-color);
+        }
+
+        .slide-list {
+            list-style: none;
+            margin: 0;
+            padding: 8px 0 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .slide-list li {
+            margin: 0;
+        }
+
+        .slide-list li::marker {
+            content: none;
+        }
+
+        .slide-list button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 9px 14px;
+            border: none;
+            background: transparent;
+            font-family: "Space Grotesk", -apple-system, sans-serif;
+            font-size: 0.82rem;
+            line-height: 1.35;
+            color: var(--text-color);
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+
+        .slide-list button:hover {
+            background: rgba(0, 86, 179, 0.06);
+        }
+
+        .slide-list li.active button {
+            background: rgba(0, 86, 179, 0.1);
+            border-left-color: var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        .slide-list-num {
+            display: inline-block;
+            min-width: 1.6em;
+            color: #888;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .slide-list li.active .slide-list-num {
+            color: var(--primary-color);
+        }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
     <div class="progress-bar" id="progressBar"></div>
+
+    <button type="button" class="slide-list-toggle" id="slideListToggle" aria-expanded="false" aria-controls="slideListPanel">☰ Slides</button>
+    <div class="slide-list-backdrop" id="slideListBackdrop" hidden></div>
+    <aside class="slide-list-panel" id="slideListPanel" aria-hidden="true">
+        <div class="slide-list-header">
+            <span>Slide list</span>
+            <button type="button" class="slide-list-close" id="slideListClose" aria-label="Close slide list">×</button>
+        </div>
+        <ol class="slide-list" id="slideList"></ol>
+    </aside>
 
     <div class="slideshow-container">
 
@@ -876,8 +1025,7 @@
                 </p>
 
                 <div class="key-point">
-                    <strong>Regression needs a Bregman divergence</strong> (MSE is the usual choice) if you want the arithmetic average.
-                    Other losses are fine — they just learn a different summary.
+                    <strong>Regression needs a <a href="https://en.wikipedia.org/wiki/Bregman_divergence">Bregman divergence</a></strong> (MSE is the usual choice) if you want the arithmetic average.
                 </div>
 
                 <h3>From one number to a function</h3>
@@ -942,6 +1090,8 @@
                     <li>Conditioned on $z$, sample $x_{t+\Delta t}$ from $p(x_{t+\Delta t} \mid x_t, z, t)$ for small $\Delta t$</li>
                 </ol>
 
+                <p style="font-size: 1.2rem;">This means we can sample from $p(x_t \mid z, t)$ by first sampling $x_0$ from the prior, and then stepping through $p(x_{t+\Delta t} \mid x_t, z, t)$ for each step until $t$ is reached.</p>
+
                 <h3>What is $z$?</h3>
                 <ul>
                     <li>Often just holds a single training sample $x_1^z$</li>
@@ -961,8 +1111,8 @@
                 
                 <h3>The Marginal Distribution $p(x_t \mid t)$</h3>
                 <ul>
-                    <li>Sample by: picking $z$, sampling $x_0$ from prior, stepping to time $t$</li>
-                    <li>With $n$ training samples of equal probability:</li>
+                    <li>Sample $z$ from $p(z)$, then sample $p(x_t \mid z, t)$</li>
+                    <li>With $n$ training samples of equal probability, one per $z$:</li>
                 </ul>
                 <div class="equation">
                     $$p(x_t \mid t) = \frac{1}{n} \sum_{i=1}^n p(x_t \mid z_i, t)$$
@@ -973,7 +1123,7 @@
 
                 <h3>The Posterior $p(z \mid x_t, t)$</h3>
                 <ul>
-                    <li>By Bayes: $p(z \mid x_t, t) \propto p(x_t \mid z, t)$</li>
+                    <li>By Bayes: $p(z \mid x_t, t) \propto p(x_t \mid z, t) p(z)$</li>
                     <li>We won't compute it explicitly, but need to understand what it means</li>
                 </ul>
             </div>
@@ -1032,26 +1182,32 @@
         <!-- SLIDE 19: Resample-z Process Intro -->
         <div class="slide" data-slide="19">
             <div class="slide-content">
-                <h2>4. The Resample-$z$ Process</h2>
-                <p style="font-size: 1.2rem; margin-bottom: 1rem;">Consider a modified process that, periodically:</p>
+                <h2>The Resample-$z$ Process</h2>
+                
+                <p style="font-size: 1.2rem; margin-bottom: 1rem;">The conditional process samples $x_t$ by first sampling $z$ from $p(z)$, then sampling $x_t$ from $p(x_t \mid z, t)$ by stepping from $x_0$.
+                    Consider a modified process that every now and again:</p>
                 
                 <blockquote>
                     <ol>
-                        <li>Sample fresh $z_{\text{new}}$ from the posterior $p(z \mid x_t, t)$</li>
-                        <li>Sample $x_{t+\Delta t}$ from $p(x_{t+\Delta t} \mid x_t, z_{\text{new}}, t)$</li>
+                        <li>Samples fresh $z_{\text{new}}$ from the posterior $p(z \mid x_t, t)$</li>
+                        <li>Takes steps with $p(x_{t+\Delta t} \mid x_t, z_{\text{new}}, t)$</li>
                     </ol>
                 </blockquote>
 
-                <p style="font-size: 1.2rem; margin: 1.5rem 0;">At every step: forget old $z$, redraw from posterior, take step.</p>
+                <p style="font-size: 1.2rem; margin: 1.5rem 0;">At points along the sample trajectory you forget old $z$, redraw from posterior, and continue stepping.</p>
 
                 <div class="key-point">
-                    <strong>Critical insight:</strong> The marginal distribution $p(x_t \mid t)$ is the same for both the original conditional process and the resample-$z$ process!
+                    <strong>Critically:</strong> The marginal distribution $p(x_t \mid t)$ is the same for both the original conditional process and the resample-$z$ process.
                 </div>
 
-                <ul>
-                    <li>Resampling rate doesn't matter—never, every step, or sporadically</li>
-                    <li>All give the same marginals $p(x_t \mid t)$</li>
-                </ul>
+                <p style="font-size: 1.2rem; margin: 1.5rem 0;">Why?
+                    Under the conditional process, sampling $z$ then $x_t$ has the joint distribution:
+                    $$p(x_t \mid z, t) p(z) = p(x_t, z \mid t)$$
+                    If you discard $z$ you're in the marginal distribution $p(x_t \mid t)$, and if you resample $z$ from the posterior you get:
+                    $$p(z \mid x_t, t) p(x_t \mid t) = p(x_t, z \mid t)$$
+                    After resampling $z$ the joint distribution is unchanged, and the step is the same, so the distribution at $p(x_{t+\Delta t}, z \mid t+\Delta t)$ will agree as well.
+                    So since they both start from $p(x_0)$ at $t=0$, the marginals $p(x_t \mid t)$ will match for all time steps.
+                </p>
             </div>
         </div>
 
@@ -1637,8 +1793,56 @@
         const totalSlidesEl = document.getElementById('totalSlides');
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
+        const slideListToggle = document.getElementById('slideListToggle');
+        const slideListPanel = document.getElementById('slideListPanel');
+        const slideListBackdrop = document.getElementById('slideListBackdrop');
+        const slideListClose = document.getElementById('slideListClose');
+        const slideListEl = document.getElementById('slideList');
 
         totalSlidesEl.textContent = totalSlides;
+
+        function getSlideTitle(slide, index) {
+            const h2 = slide.querySelector('h2');
+            if (h2) return h2.textContent.replace(/\s+/g, ' ').trim();
+            const h1 = slide.querySelector('h1');
+            if (h1) return h1.textContent.replace(/\s+/g, ' ').trim();
+            return `Slide ${index + 1}`;
+        }
+
+        function buildSlideList() {
+            if (!slideListEl) return;
+            slideListEl.replaceChildren();
+            slides.forEach((slide, i) => {
+                const li = document.createElement('li');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.innerHTML = `<span class="slide-list-num">${i + 1}.</span> ${getSlideTitle(slide, i)}`;
+                btn.addEventListener('click', () => {
+                    showSlide(i);
+                    setSlideListOpen(false);
+                });
+                li.appendChild(btn);
+                slideListEl.appendChild(li);
+            });
+        }
+
+        function updateSlideListActive() {
+            if (!slideListEl) return;
+            slideListEl.querySelectorAll('li').forEach((li, i) => {
+                li.classList.toggle('active', i === currentSlideIndex);
+            });
+            const activeBtn = slideListEl.querySelector('li.active button');
+            if (activeBtn) activeBtn.scrollIntoView({ block: 'nearest' });
+        }
+
+        function setSlideListOpen(open) {
+            document.body.classList.toggle('slide-list-open', open);
+            if (slideListToggle) slideListToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (slideListPanel) slideListPanel.setAttribute('aria-hidden', open ? 'false' : 'true');
+            if (slideListBackdrop) slideListBackdrop.hidden = !open;
+        }
+
+        buildSlideList();
 
         function showSlide(n) {
             slides.forEach(s => s.classList.remove('active'));
@@ -1660,6 +1864,8 @@
 
             const vizWrap = document.getElementById('vizSettingsWrap');
             if (vizWrap) vizWrap.style.display = currentSlideIndex === 0 ? '' : 'none';
+
+            updateSlideListActive();
         }
 
         function changeSlide(dir) {
@@ -1668,6 +1874,11 @@
 
         // Keyboard navigation
         document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.body.classList.contains('slide-list-open')) {
+                e.preventDefault();
+                setSlideListOpen(false);
+                return;
+            }
             if (e.key === 'ArrowRight' || e.key === ' ') {
                 e.preventDefault();
                 changeSlide(1);
@@ -1682,6 +1893,14 @@
                 showSlide(totalSlides - 1);
             }
         });
+
+        if (slideListToggle) {
+            slideListToggle.addEventListener('click', () => {
+                setSlideListOpen(!document.body.classList.contains('slide-list-open'));
+            });
+        }
+        if (slideListClose) slideListClose.addEventListener('click', () => setSlideListOpen(false));
+        if (slideListBackdrop) slideListBackdrop.addEventListener('click', () => setSlideListOpen(false));
 
         // Initialize
         showSlide(0);
